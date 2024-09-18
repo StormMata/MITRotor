@@ -10,7 +10,7 @@ fig*
 *old
 *.backup
 *.pkl
-*.png
+# *.png
 *.tar
 
 ### Python ###
