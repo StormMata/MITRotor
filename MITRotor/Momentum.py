@@ -39,7 +39,8 @@ class MomentumModel(ABC):
 
 
 class ConstantInduction(MomentumModel):
-    def __init__(self, a=1 / 3):
+    # def __init__(self, a=1 / 3):
+    def __init__(self, a=0):
         self.a = a
 
     def Ct_a(self, Ct: ArrayLike, yaw: float) -> ArrayLike:

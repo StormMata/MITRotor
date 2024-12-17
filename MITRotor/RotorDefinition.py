@@ -43,6 +43,11 @@ class BladeAirfoils:
 
         airfoils = {x["name"]: Airfoil.from_windio_airfoil(x, R) for x in windio["airfoils"]}
 
+        # print(airfoil_grid)
+        # print(airfoil_grid_adjusted)
+        # print(airfoil_order)
+        # print(airfoils)
+
         return cls(D, airfoil_grid_adjusted, airfoil_order, airfoils, N=N)
 
     def __init__(self, D, airfoil_grid, airfoil_order, airfoils, N=120):
@@ -107,6 +112,7 @@ class RotorDefinition:
 
         return cls(
             twist_func,
+            chord_func,
             solidity_func,
             airfoil_func,
             N_blades,
@@ -122,6 +128,7 @@ class RotorDefinition:
     def __init__(
         self,
         twist_func,
+        chord_func,
         solidity_func,
         airfoil_func,
         N_blades,
@@ -144,6 +151,7 @@ class RotorDefinition:
         self.hub_radius = hub_radius
 
         self.twist_func = twist_func
+        self.chord_func = chord_func
         self.solidity_func = solidity_func
         self.airfoil_func = airfoil_func
 

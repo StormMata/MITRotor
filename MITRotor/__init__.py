@@ -4,4 +4,4 @@ from .TangentialInduction import TangentialInductionModel, DefaultTangentialIndu
 from .TipLoss import TipLossModel, NoTipLoss, PrandtlTipLoss
 from .Momentum import MomentumModel, ConstantInduction, ClassicalMomentum, HeckMomentum, UnifiedMomentum, MadsenMomentum
 from .BEMSolver import BEM, BEMSolution
-from .ReferenceTurbines import IEA15MW, IEA10MW, IEA3_4MW
+from .ReferenceTurbines import IEA22MW, IEA15MW, IEA10MW, IEA3_4MW
