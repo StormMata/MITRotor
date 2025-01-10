@@ -91,7 +91,7 @@ class RotorDefinition:
         D = windio["assembly"]["rotor_diameter"]
 
         # Rotor radius adjusted to include cone angle and hub diameter
-        R = blade_length * np.cos(np.deg2rad(cone)) + hub_radius
+        R = blade_length * np.cos(cone) + hub_radius
 
         data_twist = blade["outer_shape_bem"]["twist"]
         data_chord = blade["outer_shape_bem"]["chord"]

@@ -598,10 +598,12 @@ components:
                        -  [74.48752035471513, 0.0, 0.0, 0.0, 0.0, 4.04207817802762, 74.48752035471513, 0.0, 0.0, 0.0, -0.6997494481577248, 74.48752035471513, -4.04207817802762, 0.6997494481577248, 0.0, 6.936288220994756, 6.936288220994756, 0.0, 0.0, 0.0, 7.649764833353705]
                        -  [41.629806234901736, 0.0, 0.0, 0.0, 0.0, 1.0098542397094246, 41.629806234901736, 0.0, 0.0, 0.0, -0.07342765941809928, 41.629806234901736, -1.0098542397094246, 0.07342765941809928, 0.0, 2.9102919170201633, 2.9102919170201633, 0.0, 0.0, 0.0, 3.141057318922618]
                        -  [2.3788498077542513, 0.0, 0.0, 0.0, 0.0, -0.0025119008028368778, 2.3788498077542513, 0.0, 0.0, 0.0, 0.003127994288020118, 2.3788498077542513, 0.0025119008028368778, -0.003127994288020118, 0.0, 0.0018276303113412796, 0.0018276303113412796, 0.0, 0.0, 0.0, 0.0018719219755116722]
-    hub: {diameter: 4.8, cone_angle: 0.06981317007977318, drag_coefficient: 0.5, flange_t2shell_t: 6.0, flange_OD2hub_D: 0.6, flange_ID2OD: 0.8, hub_blade_spacing_margin: 1.2, hub_stress_concentration: 3.0, n_front_brackets: 8, n_rear_brackets: 8, clearance_hub_spinner: 0.5, spin_hole_incr: 1.2, pitch_system_scaling_factor: 0.75, spinner_gust_ws: 70.0, hub_material: steel, spinner_material: biax}
+    # hub: {diameter: 4.8, cone_angle: 0.06981317007977318, drag_coefficient: 0.5, flange_t2shell_t: 6.0, flange_OD2hub_D: 0.6, flange_ID2OD: 0.8, hub_blade_spacing_margin: 1.2, hub_stress_concentration: 3.0, n_front_brackets: 8, n_rear_brackets: 8, clearance_hub_spinner: 0.5, spin_hole_incr: 1.2, pitch_system_scaling_factor: 0.75, spinner_gust_ws: 70.0, hub_material: steel, spinner_material: biax}
+    hub: {diameter: 4.8, cone_angle: 0.0, drag_coefficient: 0.5, flange_t2shell_t: 6.0, flange_OD2hub_D: 0.6, flange_ID2OD: 0.8, hub_blade_spacing_margin: 1.2, hub_stress_concentration: 3.0, n_front_brackets: 8, n_rear_brackets: 8, clearance_hub_spinner: 0.5, spin_hole_incr: 1.2, pitch_system_scaling_factor: 0.75, spinner_gust_ws: 70.0, hub_material: steel, spinner_material: biax}
     nacelle:
         drivetrain:
-            uptilt: 0.10471975511965977
+            # uptilt: 0.10471975511965977
+            uptilt: 0.0
             distance_tt_hub: 3.37
             overhang: 10.039
             drag_coefficient: 0.5
