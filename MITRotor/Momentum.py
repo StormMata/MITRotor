@@ -81,6 +81,7 @@ class ClassicalMomentum(MomentumModel):
         # a = self.Ct_a(_Ct, yaw)[:, None] * np.ones(geom.shape)
 
         return a
+        #return np.zeros_like(a)
 
 
 class HeckMomentum(MomentumModel):
