@@ -37,8 +37,10 @@ class BEMSolution:
     pitch: float
     tsr: float
     yaw: float
+    v_inf: float
     aero_props: AerodynamicProperties = field(repr=False)
     geom: BEMGeometry = field(repr=False)
+    rotor: RotorDefinition
     converged: bool
     niter: int
 
@@ -107,6 +109,73 @@ class BEMSolution:
         )
         return average(self.geom, dCp, grid=grid)
 
+    def power(self):
+
+        if not self.v_inf == 1.0:
+            rho = 1.225
+
+            # Compute rotational speed (ω)
+            omega = (self.tsr *self.v_inf) / self.rotor.R
+
+            # Get normalized radial positions and azimuthal angles
+            theta = self.geom.theta_mesh
+            r_dim = self.geom.mu_mesh * self.rotor.R
+
+            # Dimensionalize velocity
+            W_dim = self.W(grid="sector") * self.v_inf
+
+            # Compute solidity
+            solidity = self.solidity(grid="sector")
+
+            # Compute differential torque (dQ) using solidity
+            dQ = (np.pi * rho * solidity * W_dim**2 * self.Ctan(grid="sector") * r_dim**2)
+
+            # Integrate over r 
+            Q_r_integrated = np.trapz(dQ, x=r_dim, axis=0)
+
+            # Integrate over theta 
+            Q_total = np.trapz(Q_r_integrated, x=theta[0, :], axis=0)
+
+            # Compute total power
+            P_total = (omega / (2 * np.pi)) * Q_total
+
+        else:
+            P_total = np.nan
+
+        return P_total
+
+    def thrust(self):
+
+        if not self.v_inf == 1.0:
+            rho = 1.225
+
+            # Get normalized radial positions and azimuthal angles
+            theta = self.geom.theta_mesh
+            r_dim = self.geom.mu_mesh * self.rotor.R 
+
+            # Dimensionalize velocity
+            W_dim = self.W(grid="sector") * self.v_inf
+
+            # Compute solidity
+            solidity = self.solidity(grid="sector")
+
+            # Compute differential torque (dQ) using solidity
+            dT = (np.pi * rho * solidity * W_dim**2 * self.Cax(grid="sector") * r_dim)
+
+            # Integrate over r 
+            T_r_integrated = np.trapz(dT, x=r_dim, axis=0)
+
+            # Integrate over theta
+            T_total = np.trapz(T_r_integrated, x=theta[0, :], axis=0)
+
+            # Compute total power
+            T_total = (1 / (2 * np.pi)) * T_total
+
+        else:
+            T_total = np.nan
+
+        return T_total
+
     def Ct(self, grid: Literal["sector", "annulus", "rotor"] = "rotor"):
         _Ct = self.solidity(grid="sector") * self.W(grid="sector") ** 2 * self.Cax(grid="sector")
         return average(self.geom, _Ct, grid=grid)
@@ -151,15 +220,16 @@ class BEM:
 
         # self._solidity = self.rotor.solidity(self.geometry.mu)
 
-    def __call__(self, pitch: float, tsr: float, yaw: float) -> BEMSolution:
-        ...
+    def __call__(self, pitch: float, tsr: float, yaw: float, v_inf: float = 1.0) -> BEMSolution:
+        result = self.solve(pitch, tsr, yaw, v_inf)
+        return self.post_process(result, pitch, tsr, yaw, v_inf)
 
     def sample_points(self, yaw: float = 0.0) -> tuple[ArrayLike, ArrayLike, ArrayLike]:
         X, Y, Z = self.geometry.cartesian(yaw)
         return X, Y, Z
 
     def initial_guess(
-        self, pitch: float, tsr: float, yaw: float = 0.0, U: ArrayLike = 1.0, wdir: ArrayLike = 0.0
+        self, pitch: float, tsr: float, yaw: float = 0.0, v_inf: float = 1.0, U: ArrayLike = 1.0, wdir: ArrayLike = 0.0
     ) -> Tuple[ArrayLike, ...]:
         a = 0.5 * np.ones(self.geometry.shape)
         #a = 0 * np.ones(self.geometry.shape)
@@ -173,6 +243,7 @@ class BEM:
         pitch: ArrayLike,
         tsr: ArrayLike,
         yaw: ArrayLike = 0.0,
+        v_inf: ArrayLike = 1.0,
         U: ArrayLike = 1.0,
         wdir: ArrayLike = 0.0,
     ) -> Tuple[ArrayLike, ...]:
@@ -185,9 +256,9 @@ class BEM:
 
         return e_an, e_aprime
 
-    def post_process(self, result: FixedPointIterationResult, pitch, tsr, yaw, U=1.0, wdir=0.0) -> BEMSolution:
+    def post_process(self, result: FixedPointIterationResult, pitch, tsr, yaw, v_inf=1.0, U=1.0, wdir=0.0) -> BEMSolution:
         an, aprime = result.x
         aero_props = self.aerodynamic_model(an, aprime, pitch, tsr, yaw, self.rotor, self.geometry, U, wdir)
         aero_props.F = self.tiploss_model(aero_props, pitch, tsr, yaw, self.rotor, self.geometry)
 
-        return BEMSolution(pitch, tsr, yaw, aero_props, self.geometry, result.converged, result.niter)
+        return BEMSolution(pitch, tsr, yaw, v_inf, aero_props, self.geometry, self.rotor, result.converged, result.niter)
