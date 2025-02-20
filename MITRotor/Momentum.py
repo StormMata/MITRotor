@@ -22,7 +22,9 @@ __all__ = [
     "UnifiedMomentum",
     "MadsenMomentum",
     "Madsen_Annulus_Momentumm",
+    "Madsen_10MWAnnulus_Momentum",
     "Madsen_Rotor_Momentum",
+    "Madsen_10MWRotor_Momentum",
 ]
 
 class Predictor(nn.Module):
@@ -383,14 +385,41 @@ class Madsen_Annulus_Momentum(MomentumModel):
     def Ct_a(self, Ct: ArrayLike,) -> ArrayLike:
         Ct = np.clip(Ct, 0.0, 1.44)
 
-        # if int(abs(self.veer)) == 0:
-        #     an = 0.184 * (Ct**3) + -0.128 * (Ct**2) + 0.271 * Ct +0.05
-        # elif int(abs(self.veer)) == 2:
-        #     an = Ct**3 * 0.166 + Ct**2 * -0.139+ Ct * 0.347 +0.05
-        # elif int(abs(self.veer)) == 4:
-        #     an = Ct**3 * 0.129 + Ct**2 * -0.099 + Ct * 0.394 +0.05
-        # else:
-        #     raise ValueError(f"Unsupported veer: {self.veer}")
+        if int(abs(self.veer)) == 0:
+            an = 0.184 * (Ct**3) + -0.128 * (Ct**2) + 0.271 * Ct +0.05
+        elif int(abs(self.veer)) == 2:
+            an = Ct**3 * 0.166 + Ct**2 * -0.139+ Ct * 0.347 +0.05
+        elif int(abs(self.veer)) == 4:
+            an = Ct**3 * 0.129 + Ct**2 * -0.099 + Ct * 0.394 +0.05
+        else:
+            raise ValueError(f"Unsupported veer: {self.veer}")
+
+        return an
+
+    def __call__(
+        self,
+        aero_props: "AerodynamicProperties",
+        pitch: float,
+        tsr: float,
+        yaw: float,
+        rotor: "RotorDefinition",
+        geom: "BEMGeometry",
+        a: float,
+    ) -> ArrayLike:
+
+        Ct = geom.annulus_average(aero_props.solidity * aero_props.W**2 * aero_props.Cax)
+
+        an = self.Ct_a(Ct)[:, None] * np.ones(geom.shape)
+
+        return an
+
+class Madsen_10MWAnnulus_Momentum(MomentumModel):
+    def __init__(self, cosine_exponent=None, veer=0):
+        self.cosine_exponent = cosine_exponent
+        self.veer  = veer
+
+    def Ct_a(self, Ct: ArrayLike,) -> ArrayLike:
+        Ct = np.clip(Ct, 0.0, 1.44)
 
         if int(abs(self.veer)) == 0:
             an = 0.184 * (Ct**3) + -0.149 * (Ct**2) + 0.308 * Ct
@@ -421,6 +450,42 @@ class Madsen_Annulus_Momentum(MomentumModel):
         return an
 
 class Madsen_Rotor_Momentum(MomentumModel):
+    def __init__(self, cosine_exponent=None, veer=0):
+        self.cosine_exponent = cosine_exponent
+        self.veer  = veer
+
+    def Ct_a(self, Ct: ArrayLike,) -> ArrayLike:
+        Ct = np.clip(Ct, 0.0, 1.44)
+
+        if int(abs(self.veer)) == 0:
+            an = 0.139 * (Ct**3) + -0.063 * (Ct**2) +  0.268 * Ct 
+        elif int(abs(self.veer)) == 2:
+            an = Ct**3 * 0.083 + Ct**2 * 0.069+ Ct * 0.244
+        elif int(abs(self.veer)) == 4:
+            an = Ct**3 * 0.034 + Ct**2 * 0.248 + Ct * 0.201
+        else:
+            raise ValueError(f"Unsupported veer: {self.veer}")
+
+        return an
+
+    def __call__(
+        self,
+        aero_props: "AerodynamicProperties",
+        pitch: float,
+        tsr: float,
+        yaw: float,
+        rotor: "RotorDefinition",
+        geom: "BEMGeometry",
+        a: float,
+    ) -> ArrayLike:
+
+        Ct = geom.annulus_average(aero_props.solidity * aero_props.W**2 * aero_props.Cax)
+
+        an = self.Ct_a(Ct)[:, None] * np.ones(geom.shape)
+
+        return an
+
+class Madsen_10MWRotor_Momentum(MomentumModel):
     def __init__(self, cosine_exponent=None, veer=0):
         self.cosine_exponent = cosine_exponent
         self.veer  = veer
