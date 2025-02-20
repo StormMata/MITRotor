@@ -22,21 +22,35 @@ __all__ = [
     "UnifiedMomentum",
     "MadsenMomentum",
     "Madsen_Annulus_Momentumm",
+    "Madsen_Rotor_Momentum",
 ]
 
-class XY_Predictor(nn.Module):
-    def __init__(self):
-        super(XY_Predictor, self).__init__()
-        self.model = nn.Sequential(
-            nn.Linear(5, 16),  # Input size changed from 4 → 5
-            nn.ReLU(),
-            # nn.Linear(16, 64),
-            # nn.ReLU(),
-            nn.Linear(16, 1)  # Output size changed from 2 → 1 (predicting x only)
-        )
+class Predictor(nn.Module):
+    def __init__(self, input_size=5, hidden_sizes=[16], output_size=1):
+        """
+        Generic predictor model with configurable hidden layers.
+        
+        :param input_size: Number of input features.
+        :param hidden_sizes: List of hidden layer sizes.
+        :param output_size: Number of output features.
+        """
+        super(Predictor, self).__init__()
+        
+        layers = []
+        prev_size = input_size
+
+        for hidden_size in hidden_sizes:
+            layers.append(nn.Linear(prev_size, hidden_size))
+            layers.append(nn.ReLU())
+            prev_size = hidden_size
+        
+        layers.append(nn.Linear(prev_size, output_size))
+        
+        self.model = nn.Sequential(*layers)
 
     def forward(self, x):
         return self.model(x)
+
 
 def evaluate_model(model, r, theta, z1_eval, z2_eval, y_true):
     """Evaluate the model on a specific (z1, z2) case."""
@@ -72,13 +86,13 @@ class MomentumModel(ABC):
         yaw: float,
         rotor: "RotorDefinition",
         geom: "BEMGeometry",
+        a: float,
     ) -> ArrayLike:
         ...
 
 
 class ConstantInduction(MomentumModel):
-    def __init__(self, a=1 / 3):
-    # def __init__(self, a=0):
+    def __init__(self, a):
         self.a = a
 
     def Ct_a(self, Ct: ArrayLike, yaw: float) -> ArrayLike:
@@ -109,30 +123,17 @@ class ClassicalMomentum(MomentumModel):
         rotor: "RotorDefinition",
         geom: "BEMGeometry",
     ) -> ArrayLike:
-        # Ct = aero_props.solidity * geom.annulus_average(aero_props.W**2 * aero_props.Cax)
-        # Ct = geom.annulus_average(aero_props.solidity * aero_props.W**2 * aero_props.Cax)
         Ct = geom.rotor_average(geom.annulus_average(aero_props.solidity * aero_props.W**2 * aero_props.Cax))
 
         a = self.Ct_a(Ct, yaw, tiploss=1.0)
 
-        # _Ct = np.clip(Ct, -1, 1.59)
-        # a = self.Ct_a(_Ct, yaw)[:, None] * np.ones(geom.shape)
-
         return a
-        #return np.zeros_like(a)
 
 class NeuralNetInduction(MomentumModel):
     def __init__(self, cosine_exponent=None, shear=0, veer=0):
         self.cosine_exponent = cosine_exponent
         self.shear = shear
         self.veer = veer
-
-    # def Ct_a(self, Ct: ArrayLike, yaw: float, tiploss=1.0) -> ArrayLike:
-    #     Ct_tiploss = np.clip(Ct / tiploss, 0.0, 2.0)
-    #     if self.cosine_exponent:
-    #         Ct_tiploss /= np.cos(yaw) ** self.cosine_exponent
-    #     an = Ct_tiploss**3 * 0.0883 + Ct_tiploss**2 * 0.0586 + Ct_tiploss * 0.2460
-    #     return an
 
     def Ct_a(
         self,
@@ -145,7 +146,10 @@ class NeuralNetInduction(MomentumModel):
     ) -> ArrayLike:
         Ct = aero_props.solidity * aero_props.W**2 * aero_props.Cax
 
-        NN_a_model = XY_Predictor()
+        # Predictor(hidden_sizes=[32])     # 2 layers, 32 neurons in the hidden layer
+        # Predictor(hidden_sizes=[16, 16]) # 3 layers, 16 neurons in each hidden layer
+
+        NN_a_model = Predictor(hidden_sizes=[32])
         NN_a_model.load_state_dict(torch.load("/scratch/09909/smata/induction_modeling/FF_NN_modeling/NN_models/E064_L2_N16_Arelu.pth"))
 
         an = evaluate_model(NN_a_model, geom.mu_mesh, geom.theta_mesh, self.veer, self.shear, Ct)
@@ -163,7 +167,7 @@ class NeuralNetInduction(MomentumModel):
     ) -> ArrayLike:
         Ct = aero_props.solidity * aero_props.W**2 * aero_props.Cax
 
-        NN_a_model = XY_Predictor()
+        NN_a_model = Predictor(hidden_sizes=[32])
         NN_a_model.load_state_dict(torch.load("/scratch/09909/smata/induction_modeling/FF_NN_modeling/NN_models/E064_L2_N16_Arelu.pth"))
 
         an = evaluate_model(NN_a_model, geom.mu_mesh, geom.theta_mesh, self.veer, self.shear, Ct)
@@ -379,12 +383,21 @@ class Madsen_Annulus_Momentum(MomentumModel):
     def Ct_a(self, Ct: ArrayLike,) -> ArrayLike:
         Ct = np.clip(Ct, 0.0, 1.44)
 
+        # if int(abs(self.veer)) == 0:
+        #     an = 0.184 * (Ct**3) + -0.128 * (Ct**2) + 0.271 * Ct +0.05
+        # elif int(abs(self.veer)) == 2:
+        #     an = Ct**3 * 0.166 + Ct**2 * -0.139+ Ct * 0.347 +0.05
+        # elif int(abs(self.veer)) == 4:
+        #     an = Ct**3 * 0.129 + Ct**2 * -0.099 + Ct * 0.394 +0.05
+        # else:
+        #     raise ValueError(f"Unsupported veer: {self.veer}")
+
         if int(abs(self.veer)) == 0:
-            an = 0.184 * (Ct**3) + -0.128 * (Ct**2) + 0.271 * Ct 
+            an = 0.184 * (Ct**3) + -0.149 * (Ct**2) + 0.308 * Ct
         elif int(abs(self.veer)) == 2:
-            an = Ct**3 * 0.166 + Ct**2 * -0.139+ Ct * 0.347
+            an = Ct**3 * 0.172 + Ct**2 * -0.170+ Ct * 0.383
         elif int(abs(self.veer)) == 4:
-            an = Ct**3 * 0.129 + Ct**2 * -0.099 + Ct * 0.394
+            an = Ct**3 * 0.127 + Ct**2 * -0.101 + Ct * 0.407
         else:
             raise ValueError(f"Unsupported veer: {self.veer}")
 
@@ -398,6 +411,43 @@ class Madsen_Annulus_Momentum(MomentumModel):
         yaw: float,
         rotor: "RotorDefinition",
         geom: "BEMGeometry",
+        a: float,
+    ) -> ArrayLike:
+
+        Ct = geom.annulus_average(aero_props.solidity * aero_props.W**2 * aero_props.Cax)
+
+        an = self.Ct_a(Ct)[:, None] * np.ones(geom.shape)
+
+        return an
+
+class Madsen_Rotor_Momentum(MomentumModel):
+    def __init__(self, cosine_exponent=None, veer=0):
+        self.cosine_exponent = cosine_exponent
+        self.veer  = veer
+
+    def Ct_a(self, Ct: ArrayLike,) -> ArrayLike:
+        Ct = np.clip(Ct, 0.0, 1.44)
+
+        if int(abs(self.veer)) == 0:
+            an = 0.139 * (Ct**3) + -0.063 * (Ct**2) +  0.268 * Ct 
+        elif int(abs(self.veer)) == 2:
+            an = Ct**3 * 0.083 + Ct**2 * 0.069+ Ct * 0.244
+        elif int(abs(self.veer)) == 4:
+            an = Ct**3 * 0.034 + Ct**2 * 0.248 + Ct * 0.201
+        else:
+            raise ValueError(f"Unsupported veer: {self.veer}")
+
+        return an
+
+    def __call__(
+        self,
+        aero_props: "AerodynamicProperties",
+        pitch: float,
+        tsr: float,
+        yaw: float,
+        rotor: "RotorDefinition",
+        geom: "BEMGeometry",
+        a: float,
     ) -> ArrayLike:
 
         Ct = geom.annulus_average(aero_props.solidity * aero_props.W**2 * aero_props.Cax)
