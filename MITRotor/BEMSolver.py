@@ -229,7 +229,7 @@ class BEM:
         return X, Y, Z
 
     def initial_guess(
-        self, pitch: float, tsr: float, yaw: float = 0.0, v_inf: float = 1.0, U: ArrayLike = 1.0, wdir: ArrayLike = 0.0, a: float = 1/3
+        self, pitch: float, tsr: float, yaw: float = 0.0, v_inf: float = 1.0, U: ArrayLike = 1.0, wdir: ArrayLike = 0.0, a: float = 1/2
     ) -> Tuple[ArrayLike, ...]:
         an = a * np.ones(self.geometry.shape)
         aprime = np.zeros(self.geometry.shape)
@@ -245,7 +245,7 @@ class BEM:
         v_inf: ArrayLike = 1.0,
         U: ArrayLike = 1.0,
         wdir: ArrayLike = 0.0,
-        a: float = 1/3,
+        a: float = 1/2,
     ) -> Tuple[ArrayLike, ...]:
         an, aprime = x
 

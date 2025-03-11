@@ -108,6 +108,7 @@ class ConstantInduction(MomentumModel):
         yaw: float,
         rotor: "RotorDefinition",
         geom: "BEMGeometry",
+        a: float,
     ) -> ArrayLike:
         return self.a * np.ones_like(aero_props.an)
 
@@ -124,6 +125,7 @@ class ClassicalMomentum(MomentumModel):
         yaw: float,
         rotor: "RotorDefinition",
         geom: "BEMGeometry",
+        a: float,
     ) -> ArrayLike:
         Ct = geom.rotor_average(geom.annulus_average(aero_props.solidity * aero_props.W**2 * aero_props.Cax))
 
@@ -372,6 +374,7 @@ class MadsenMomentum(MomentumModel):
         yaw: float,
         rotor: "RotorDefinition",
         geom: "BEMGeometry",
+        a: float,
     ) -> ArrayLike:
         Ct = aero_props.solidity * aero_props.W**2 * aero_props.Cax
         an = self.Ct_a(Ct, yaw, tiploss=aero_props.F)
