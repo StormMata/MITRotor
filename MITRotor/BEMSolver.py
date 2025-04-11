@@ -83,12 +83,21 @@ class BEMSolution:
 
     def Cd(self, grid: Literal["sector", "annulus", "rotor"] = "rotor"):
         return average(self.geom, self.aero_props.Cd, grid)
+    
+    def Cn(self, grid: Literal["sector", "annulus", "rotor"] = "rotor"):
+        return average(self.geom, self.aero_props.C_n, grid)
+    
+    def Ctan(self, grid: Literal["sector", "annulus", "rotor"] = "rotor"):
+        return average(self.geom, self.aero_props.C_tan, grid)
 
-    def Cax(self, grid: Literal["sector", "annulus", "rotor"] = "rotor"):
-        return average(self.geom, self.aero_props.Cax, grid)
+    def Cx(self, grid: Literal["sector", "annulus", "rotor"] = "rotor"):
+        return average(self.geom, self.aero_props.C_x_corr, grid)
 
-    def Ctan(self, grid: Literal["sector ", "annulus", "rotor"] = "rotor"):
-        return average(self.geom, self.aero_props.Ctan, grid)
+    def Ctau(self, grid: Literal["sector ", "annulus", "rotor"] = "rotor"):
+        return average(self.geom, self.aero_props.C_tau_corr, grid)
+    
+    def Ctau_uncorr(self, grid: Literal["sector ", "annulus", "rotor"] = "rotor"):
+        return average(self.geom, self.aero_props.C_tau, grid)
 
     def F(self, grid: Literal["sector", "annulus", "rotor"] = "rotor"):
         return average(self.geom, self.aero_props.F, grid)
@@ -102,10 +111,16 @@ class BEMSolution:
     def Cp(self, grid: Literal["sector", "annulus", "rotor"] = "rotor"):
         dCp = (
             self.tsr
-            * self.solidity(grid="sector")
             * self.geom.mu_mesh
-            * self.W(grid="sector") ** 2
-            * self.Ctan(grid="sector")
+            * self.Ctau_uncorr(grid="sector")
+        )
+        return average(self.geom, dCp, grid=grid)
+    
+    def Cp_corr(self, grid: Literal["sector", "annulus", "rotor"] = "rotor"):
+        dCp = (
+            self.tsr
+            * self.geom.mu_mesh
+            * self.Ctau(grid="sector")
         )
         return average(self.geom, dCp, grid=grid)
 
@@ -177,15 +192,16 @@ class BEMSolution:
         return T_total
 
     def Ct(self, grid: Literal["sector", "annulus", "rotor"] = "rotor"):
-        _Ct = self.solidity(grid="sector") * self.W(grid="sector") ** 2 * self.Cax(grid="sector")
+        _Ct = self.aero_props.C_x
+        return average(self.geom, _Ct, grid=grid)
+    
+    def Ct_corr(self, grid: Literal["sector", "annulus", "rotor"] = "rotor"):
+        _Ct = self.aero_props.C_x_corr
         return average(self.geom, _Ct, grid=grid)
 
     def Ctprime(self, grid: Literal["sector", "annulus", "rotor"] = "rotor"):
         Ctprime = self.Ct(grid="sector") / ((1 - self.a(grid="sector")) ** 2 * np.cos(self.yaw) ** 2)
         return average(self.geom, Ctprime, grid=grid)
-
-    def Cq(self, grid: Literal["sector", "annulus", "rotor"] = "rotor"):
-        return average(self.geom, self.Cp(grid="sector") / self.tsr, grid=grid)
 
 
 @adaptivefixedpointiteration(max_iter=500, relaxations=[0.25, 0.5, 0.96])
@@ -221,20 +237,19 @@ class BEM:
         # self._solidity = self.rotor.solidity(self.geometry.mu)
 
     def __call__(self, pitch: float, tsr: float, yaw: float, v_inf: float = 1.0, a: float = 1/3) -> BEMSolution:
-        result = self.solve(pitch, tsr, yaw, v_inf, a)
-        return self.post_process(result, pitch, tsr, yaw, v_inf)
+        ...
 
     def sample_points(self, yaw: float = 0.0) -> tuple[ArrayLike, ArrayLike, ArrayLike]:
         X, Y, Z = self.geometry.cartesian(yaw)
         return X, Y, Z
 
     def initial_guess(
-        self, pitch: float, tsr: float, yaw: float = 0.0, v_inf: float = 1.0, U: ArrayLike = 1.0, wdir: ArrayLike = 0.0, a: float = 1/2
+        self, pitch: float, tsr: float, yaw: float = 0.0, U: ArrayLike = 1.0, wdir: ArrayLike = 0.0
     ) -> Tuple[ArrayLike, ...]:
-        an = a * np.ones(self.geometry.shape)
+        a = (1 / 3) * np.ones(self.geometry.shape)
         aprime = np.zeros(self.geometry.shape)
 
-        return an, aprime
+        return a, aprime
 
     def residual(
         self,
@@ -249,7 +264,16 @@ class BEM:
     ) -> Tuple[ArrayLike, ...]:
         an, aprime = x
 
-        aero_props = self.aerodynamic_model(an, aprime, pitch, tsr, yaw, self.rotor, self.geometry, U, wdir)
+        aero_props = self.aerodynamic_model(
+            an = an, 
+            aprime=aprime, 
+            pitch=pitch, 
+            tsr=tsr, 
+            yaw=yaw, 
+            rotor=self.rotor, 
+            geom=self.geometry, 
+            U=U, 
+            wdir=wdir)
         aero_props.F = self.tiploss_model(aero_props, pitch, tsr, yaw, self.rotor, self.geometry)
         e_an = self.momentum_model(aero_props, pitch, tsr, yaw, self.rotor, self.geometry, a=a) - an
         e_aprime = self.tangential_induction_model(aero_props, pitch, tsr, yaw, self.rotor, self.geometry) - aprime
@@ -257,6 +281,8 @@ class BEM:
         return e_an, e_aprime
 
     def post_process(self, result: FixedPointIterationResult, pitch, tsr, yaw, v_inf=1.0, U=1.0, wdir=0.0) -> BEMSolution:
+        U = np.ones(self.geometry.shape) if U is None else U
+        wdir = np.zeros(self.geometry.shape) if wdir is None else wdir
         an, aprime = result.x
         aero_props = self.aerodynamic_model(an, aprime, pitch, tsr, yaw, self.rotor, self.geometry, U, wdir)
         aero_props.F = self.tiploss_model(aero_props, pitch, tsr, yaw, self.rotor, self.geometry)
