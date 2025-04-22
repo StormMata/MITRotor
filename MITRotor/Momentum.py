@@ -144,7 +144,7 @@ class MomentumModel(ABC):
         geom: "BEMGeometry",
     ) -> ArrayLike:
 
-        return self.compute_induction(aero_props, pitch, tsr, yaw)
+        return self.compute_induction(aero_props, geom, pitch, tsr, yaw)
 
     def __call__(
         self,
@@ -201,6 +201,7 @@ class NeuralNetInduction(MomentumModel):
     def compute_induction(
         self,
         aero_props: "AerodynamicProperties",
+        geom: "BEMGeometry",
         pitch: float,
         tsr: float,
         yaw: float,
