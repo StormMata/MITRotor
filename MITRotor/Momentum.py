@@ -144,7 +144,7 @@ class MomentumModel(ABC):
         geom: "BEMGeometry",
     ) -> ArrayLike:
 
-        return self.compute_induction(pitch, tsr, yaw)
+        return self.compute_induction(aero_props, pitch, tsr, yaw)
 
     def __call__(
         self,
