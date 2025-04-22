@@ -184,6 +184,7 @@ class NeuralNetInduction(MomentumModel):
         self.cosine_exponent = cosine_exponent
         self.shear = shear
         self.veer = veer
+        self._func = self._func_sector
 
     def compute_induction(
         self,
