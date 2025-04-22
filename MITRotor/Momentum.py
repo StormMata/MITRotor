@@ -206,12 +206,12 @@ class NeuralNetInduction(MomentumModel):
         tsr: float,
         yaw: float,
     ) -> ArrayLike:
-        Ct = aero_props.solidity * aero_props.W**2 * aero_props.C_x
+        # Ct = aero_props.solidity * aero_props.W**2 * aero_props.C_x
 
         NN_a_model = XY_Predictor()
         NN_a_model.load_state_dict(torch.load("/scratch/09909/smata/induction_modeling/FF_NN_modeling/NN_models/E128_L3_N64_Arelu_15.pth"))
 
-        an = evaluate_model(NN_a_model, geom.mu_mesh, geom.theta_mesh, self.shear, self.veer, Ct)
+        an = evaluate_model(NN_a_model, geom.mu_mesh, geom.theta_mesh, self.shear, self.veer, aero_props.C_x)
 
         return an
 
