@@ -189,12 +189,6 @@ class NeuralNetInduction(MomentumModel):
     def compute_induction(
         self,
         aero_props: "AerodynamicProperties",
-        pitch: float,
-        tsr: float,
-        yaw: float,
-        rotor: "RotorDefinition",
-        geom: "BEMGeometry",
-        a: float,
     ) -> ArrayLike:
         Ct = aero_props.solidity * aero_props.W**2 * aero_props.C_x
 
