@@ -27,28 +27,16 @@ __all__ = [
     "Madsen_10MWRotor_Momentum",
 ]
 
-class Predictor(nn.Module):
-    def __init__(self, input_size=5, hidden_sizes=[16], output_size=1):
-        """
-        Generic predictor model with configurable hidden layers.
-        
-        :param input_size: Number of input features.
-        :param hidden_sizes: List of hidden layer sizes.
-        :param output_size: Number of output features.
-        """
-        super(Predictor, self).__init__()
-        
-        layers = []
-        prev_size = input_size
-
-        for hidden_size in hidden_sizes:
-            layers.append(nn.Linear(prev_size, hidden_size))
-            layers.append(nn.ReLU())
-            prev_size = hidden_size
-        
-        layers.append(nn.Linear(prev_size, output_size))
-        
-        self.model = nn.Sequential(*layers)
+class XY_Predictor(nn.Module):
+    def __init__(self):
+        super(XY_Predictor, self).__init__()
+        self.model = nn.Sequential(
+            nn.Linear(5, 64),  # Input size changed from 4 → 5
+            nn.ReLU(),
+            nn.Linear(64, 64),
+            nn.ReLU(),
+            nn.Linear(64, 1)  # Output size changed from 2 → 1 (predicting x only)
+        )
 
     def forward(self, x):
         return self.model(x)
@@ -212,7 +200,7 @@ class NeuralNetInduction(MomentumModel):
         # Predictor(hidden_sizes=[32])     # 2 layers, 32 neurons in the hidden layer
         # Predictor(hidden_sizes=[16, 16]) # 3 layers, 16 neurons in each hidden layer
 
-        NN_a_model = Predictor(hidden_sizes=[64,64])
+        NN_a_model = XY_Predictor()
         NN_a_model.load_state_dict(torch.load("/scratch/09909/smata/induction_modeling/FF_NN_modeling/NN_models/E128_L3_N64_Arelu_15.pth"))
 
         an = evaluate_model(NN_a_model, geom.mu_mesh, geom.theta_mesh, self.veer, self.shear, Ct)
@@ -231,7 +219,7 @@ class NeuralNetInduction(MomentumModel):
     ) -> ArrayLike:
         Ct = aero_props.solidity * aero_props.W**2 * aero_props.C_x
 
-        NN_a_model = Predictor(hidden_sizes=[64,64])
+        NN_a_model = XY_Predictor()
         NN_a_model.load_state_dict(torch.load("/scratch/09909/smata/induction_modeling/FF_NN_modeling/NN_models/E128_L3_N64_Arelu.pth"))
 
         an = evaluate_model(NN_a_model, geom.mu_mesh, geom.theta_mesh, self.veer, self.shear, Ct)
