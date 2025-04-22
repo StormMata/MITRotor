@@ -197,35 +197,12 @@ class NeuralNetInduction(MomentumModel):
     ) -> ArrayLike:
         Ct = aero_props.solidity * aero_props.W**2 * aero_props.C_x
 
-        # Predictor(hidden_sizes=[32])     # 2 layers, 32 neurons in the hidden layer
-        # Predictor(hidden_sizes=[16, 16]) # 3 layers, 16 neurons in each hidden layer
-
         NN_a_model = XY_Predictor()
         NN_a_model.load_state_dict(torch.load("/scratch/09909/smata/induction_modeling/FF_NN_modeling/NN_models/E128_L3_N64_Arelu_15.pth"))
 
         an = evaluate_model(NN_a_model, geom.mu_mesh, geom.theta_mesh, self.veer, self.shear, Ct)
 
         return an
-
-    def __call__(
-        self,
-        aero_props: "AerodynamicProperties",
-        pitch: float,
-        tsr: float,
-        yaw: float,
-        rotor: "RotorDefinition",
-        geom: "BEMGeometry",
-        a: float,
-    ) -> ArrayLike:
-        Ct = aero_props.solidity * aero_props.W**2 * aero_props.C_x
-
-        NN_a_model = XY_Predictor()
-        NN_a_model.load_state_dict(torch.load("/scratch/09909/smata/induction_modeling/FF_NN_modeling/NN_models/E128_L3_N64_Arelu.pth"))
-
-        an = evaluate_model(NN_a_model, geom.mu_mesh, geom.theta_mesh, self.veer, self.shear, Ct)
-
-        return an
-
 
 class HeckMomentum(MomentumModel):
     """
