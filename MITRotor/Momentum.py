@@ -134,6 +134,18 @@ class MomentumModel(ABC):
 
         return self.compute_induction(axial_force, yaw)
 
+    def _func_NN_sector(
+        self,
+        aero_props: "AerodynamicProperties",
+        pitch: float,
+        tsr: float,
+        yaw: float,
+        rotor: "RotorDefinition",
+        geom: "BEMGeometry",
+    ) -> ArrayLike:
+
+        return self.compute_induction(pitch, tsr, yaw)
+
     def __call__(
         self,
         aero_props: "AerodynamicProperties",
@@ -184,7 +196,7 @@ class NeuralNetInduction(MomentumModel):
         self.cosine_exponent = cosine_exponent
         self.shear = shear
         self.veer = veer
-        self._func = self._func_sector
+        self._func = self._func_NN_sector
 
     def compute_induction(
         self,
