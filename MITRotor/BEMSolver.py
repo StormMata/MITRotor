@@ -291,7 +291,7 @@ class BEM:
         NN_a_model = XY_Predictor()
         NN_a_model.load_state_dict(torch.load("/scratch/09909/smata/induction_modeling/FF_NN_modeling/NN_models/E128_L3_N64_Arelu_15.pth"))
 
-        a = evaluate_model(NN_a_model, self.geometry.mu_mesh, self.geometry.theta_mesh, shear, veer, self.aero_props.C_x)
+        a = evaluate_model(NN_a_model, self.geometry.mu_mesh, self.geometry.theta_mesh, shear, veer, aero_props.C_x)
 
         return a, aprime
 
