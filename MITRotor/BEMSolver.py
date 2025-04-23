@@ -42,6 +42,8 @@ class BEMSolution:
     tsr: float
     yaw: float
     v_inf: float
+    shear: float
+    veer: float
     aero_props: AerodynamicProperties = field(repr=False)
     geom: BEMGeometry = field(repr=False)
     rotor: RotorDefinition
@@ -281,7 +283,7 @@ class BEM:
         return X, Y, Z
 
     def initial_guess(
-        self, pitch: float, tsr: float, yaw: float = 0.0, U: ArrayLike = 1.0, wdir: ArrayLike = 0.0
+        self, pitch: float, tsr: float, yaw: float = 0.0, U: ArrayLike = 1.0, wdir: ArrayLike = 0.0, shear: float = 0.0, veer: float = 0.0
     ) -> Tuple[ArrayLike, ...]:
         # a = (1 / 3) * np.ones(self.geometry.shape)
         aprime = np.zeros(self.geometry.shape)
@@ -289,7 +291,7 @@ class BEM:
         NN_a_model = XY_Predictor()
         NN_a_model.load_state_dict(torch.load("/scratch/09909/smata/induction_modeling/FF_NN_modeling/NN_models/E128_L3_N64_Arelu_15.pth"))
 
-        a = evaluate_model(NN_a_model, self.geometry.mu_mesh, self.geometry.theta_mesh, self.shear, self.veer, self.aerodynamic_model.C_x)
+        a = evaluate_model(NN_a_model, self.geometry.mu_mesh, self.geometry.theta_mesh, shear, veer, self.aerodynamic_model.C_x)
 
         return a, aprime
 
