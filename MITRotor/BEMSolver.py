@@ -241,7 +241,7 @@ def evaluate_model(model, r, theta, z1_eval, z2_eval, y_true):
 
     return x_pred
             
-@adaptivefixedpointiteration(max_iter=1, relaxations=[0.25, 0.5, 0.96])
+@adaptivefixedpointiteration(max_iter=500, relaxations=[0.25, 0.5, 0.96])
 class BEM:
     """
     A generic BEM class which facilitates dependency injection for various models.
