@@ -283,7 +283,7 @@ class BEM:
     def initial_guess(
         self, pitch: float, tsr: float, yaw: float = 0.0, U: ArrayLike = 1.0, wdir: ArrayLike = 0.0
     ) -> Tuple[ArrayLike, ...]:
-        a = np.ones(self.geometry.shape)
+        a = 0.01 * np.ones(self.geometry.shape)
         aprime = np.zeros(self.geometry.shape)
 
         return a, aprime
