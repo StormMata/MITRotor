@@ -1,6 +1,10 @@
 from dataclasses import dataclass, field
 from typing import Literal, Optional, Tuple
 
+import torch
+import torch.nn as nn
+import torch.optim as optim
+
 import numpy as np
 from numpy.typing import ArrayLike
 from UnifiedMomentumModel.Momentum import Heck
