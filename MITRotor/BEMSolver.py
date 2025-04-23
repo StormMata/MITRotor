@@ -42,8 +42,6 @@ class BEMSolution:
     tsr: float
     yaw: float
     v_inf: float
-    shear: float
-    veer: float
     aero_props: AerodynamicProperties = field(repr=False)
     geom: BEMGeometry = field(repr=False)
     rotor: RotorDefinition
@@ -283,7 +281,7 @@ class BEM:
         return X, Y, Z
 
     def initial_guess(
-        self, pitch: float, tsr: float, yaw: float = 0.0, U: ArrayLike = 1.0, wdir: ArrayLike = 0.0, shear: float = 0.0, veer: float = 0.0
+        self, pitch: float, tsr: float, yaw: float = 0.0, U: ArrayLike = 1.0, wdir: ArrayLike = 0.0
     ) -> Tuple[ArrayLike, ...]:
         a = np.ones(self.geometry.shape)
         aprime = np.zeros(self.geometry.shape)
