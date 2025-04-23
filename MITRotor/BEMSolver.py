@@ -221,6 +221,25 @@ class XY_Predictor(nn.Module):
 
     def forward(self, x):
         return self.model(x)
+        
+def evaluate_model(model, r, theta, z1_eval, z2_eval, y_true):
+    """Evaluate the model on a specific (z1, z2) case."""
+    # Prepare input
+    X_eval = np.column_stack([r.flatten(), theta.flatten(),
+                              np.full_like(r.flatten(), z1_eval),
+                              np.full_like(r.flatten(), z2_eval),
+                              y_true.flatten()])  # Add y as input
+    X_eval_tensor = torch.tensor(X_eval, dtype=torch.float32)
+
+    # Get predictions
+    model.eval()
+    with torch.no_grad():
+        predictions = model(X_eval_tensor).numpy()
+
+    # Reshape predictions
+    x_pred = predictions[:, 0].reshape(r.shape)
+
+    return x_pred
             
 @adaptivefixedpointiteration(max_iter=1, relaxations=[0.25, 0.5, 0.96])
 class BEM:
@@ -234,25 +253,6 @@ class BEM:
     - axial induction calculation method
     - tangential induction calculation method
     """
-    
-    def evaluate_model(model, r, theta, z1_eval, z2_eval, y_true):
-        """Evaluate the model on a specific (z1, z2) case."""
-        # Prepare input
-        X_eval = np.column_stack([r.flatten(), theta.flatten(),
-                                  np.full_like(r.flatten(), z1_eval),
-                                  np.full_like(r.flatten(), z2_eval),
-                                  y_true.flatten()])  # Add y as input
-        X_eval_tensor = torch.tensor(X_eval, dtype=torch.float32)
-    
-        # Get predictions
-        model.eval()
-        with torch.no_grad():
-            predictions = model(X_eval_tensor).numpy()
-    
-        # Reshape predictions
-        x_pred = predictions[:, 0].reshape(r.shape)
-    
-        return x_pred
 
     def __init__(
         self,
