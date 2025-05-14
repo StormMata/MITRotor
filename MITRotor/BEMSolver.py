@@ -241,7 +241,11 @@ def evaluate_model(model, r, theta, z1_eval, z2_eval, y_true):
 
     return x_pred
             
-@adaptivefixedpointiteration(max_iter=500, relaxations=[0.25, 0.5, 0.96])
+# @adaptivefixedpointiteration(max_iter=500, tolerance=1e-8, relaxations=[0.25, 0.5, 0.96])
+@adaptivefixedpointiteration(max_iter=500, tolerance=1e-4, relaxations=[0.0])
+
+# @adaptivefixedpointiteration(max_iter=max_iter, relaxations=[0.25, 0.5, 0.96])
+
 class BEM:
     """
     A generic BEM class which facilitates dependency injection for various models.
@@ -262,6 +266,7 @@ class BEM:
         momentum_model: Optional[Momentum.MomentumModel] = None,
         tangential_induction_model: Optional[TangentialInductionModel] = None,
         aerodynamic_model: Optional[AerodynamicModel] = None,
+        index: Optional[int] = None,
     ):
         self.rotor = rotor
 
@@ -270,10 +275,12 @@ class BEM:
         self.tiploss_model: TipLoss.TipLossModel = tiploss_model or TipLoss.PrandtlTipLoss(root_loss=True)
         self.momentum_model: Momentum.MomentumModel = momentum_model or Momentum.HeckMomentum()
         self.tangential_induction_model = tangential_induction_model or DefaultTangentialInduction()
+        self.index = index or 0
 
+        # @adaptivefixedpointiteration(max_iter=max_iter, relaxations=[0.25, 0.5, 0.96])
         # self._solidity = self.rotor.solidity(self.geometry.mu)
 
-    def __call__(self, pitch: float, tsr: float, yaw: float, v_inf: float = 1.0, a: float = 1/3) -> BEMSolution:
+    def __call__(self, pitch: float, tsr: float, yaw: float, v_inf: float = 1.0, a: float = 1/3, a_init: Optional[ArrayLike] = None) -> BEMSolution:
         ...
 
     def sample_points(self, yaw: float = 0.0) -> tuple[ArrayLike, ArrayLike, ArrayLike]:
@@ -281,11 +288,18 @@ class BEM:
         return X, Y, Z
 
     def initial_guess(
-        self, pitch: float, tsr: float, yaw: float = 0.0, U: ArrayLike = 1.0, wdir: ArrayLike = 0.0
+        self, 
+        pitch: float, 
+        tsr: float, 
+        yaw: float = 0.0, 
+        U: ArrayLike = 1.0, 
+        wdir: ArrayLike = 0.0,
+        index: int = 0,
+        a_init: Optional[ArrayLike] = None,  # <--- NEW
+        veer: Optional[ArrayLike] = None  # <--- NEW
     ) -> Tuple[ArrayLike, ...]:
-        a = 0.01 * np.ones(self.geometry.shape)
+        a = a_init if a_init is not None else 0.37 * np.ones(self.geometry.shape)
         aprime = np.zeros(self.geometry.shape)
-
         return a, aprime
 
     def residual(
@@ -297,7 +311,10 @@ class BEM:
         v_inf: ArrayLike = 1.0,
         U: ArrayLike = 1.0,
         wdir: ArrayLike = 0.0,
+        index:int=0,
         a: float = 1/2,
+        a_init: Optional[ArrayLike] = None,  # <--- NEW
+        veer: Optional[ArrayLike] = None  # <--- NEW
     ) -> Tuple[ArrayLike, ...]:
         an, aprime = x
 
@@ -310,18 +327,19 @@ class BEM:
             rotor=self.rotor, 
             geom=self.geometry, 
             U=U, 
-            wdir=wdir)
+            wdir=wdir,
+            index=self.index)
         aero_props.F = self.tiploss_model(aero_props, pitch, tsr, yaw, self.rotor, self.geometry)
         e_an = self.momentum_model(aero_props, pitch, tsr, yaw, self.rotor, self.geometry, a=a) - an
         e_aprime = self.tangential_induction_model(aero_props, pitch, tsr, yaw, self.rotor, self.geometry) - aprime
 
         return e_an, e_aprime
 
-    def post_process(self, result: FixedPointIterationResult, pitch, tsr, yaw, v_inf=1.0, U=1.0, wdir=0.0) -> BEMSolution:
+    def post_process(self, result: FixedPointIterationResult, pitch, tsr, yaw, index, v_inf=1.0, U=1.0, wdir=0.0,**kwargs) -> BEMSolution:
         U = np.ones(self.geometry.shape) if U is None else U
         wdir = np.zeros(self.geometry.shape) if wdir is None else wdir
         an, aprime = result.x
-        aero_props = self.aerodynamic_model(an, aprime, pitch, tsr, yaw, self.rotor, self.geometry, U, wdir)
+        aero_props = self.aerodynamic_model(an, aprime, pitch, tsr, yaw, self.rotor, self.geometry, U, wdir,index)
         aero_props.F = self.tiploss_model(aero_props, pitch, tsr, yaw, self.rotor, self.geometry)
 
         return BEMSolution(pitch, tsr, yaw, v_inf, aero_props, self.geometry, self.rotor, result.converged, result.niter)

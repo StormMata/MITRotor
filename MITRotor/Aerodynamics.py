@@ -56,6 +56,7 @@ class AerodynamicProperties:
     aoa: ArrayLike
     Cl: ArrayLike
     Cd: ArrayLike
+    index: int
     F: Optional[ArrayLike] = None
 
     def __post_init__(self):
@@ -133,6 +134,7 @@ class AerodynamicModel(ABC):
         geom: BEMGeometry,
         U: ArrayLike,
         wdir: ArrayLike,
+        index: int,
     ) -> AerodynamicProperties:
         """
         Performs the aerodynamic calculations in a blade-element code.
@@ -167,6 +169,7 @@ class KraghAerodynamics(AerodynamicModel):
         geom: BEMGeometry,
         U: ArrayLike,
         wdir: ArrayLike,
+        index: int,
     ) -> AerodynamicProperties:
         """
         Performs the aerodynamic calculations in a blade-element code using the
@@ -191,12 +194,16 @@ class KraghAerodynamics(AerodynamicModel):
         """
         local_yaw = wdir - yaw
 
+        # print(f'a in the aero is: {an}')
+        # print(local_yaw)
+
         Vax = (
             U
             * (1 - an)
             * np.cos(local_yaw * np.cos(geom.theta_mesh))
             * np.cos(local_yaw * np.sin(geom.theta_mesh))
         )
+        # print(f'Vax is {Vax}')
         Vtan = (
             (1 + aprime) * tsr * geom.mu_mesh
             - U * (1 - an)
@@ -209,6 +216,17 @@ class KraghAerodynamics(AerodynamicModel):
         aoa = np.clip(aoa, -np.pi / 2, np.pi / 2)
 
         Cl, Cd = rotor.clcd(geom.mu_mesh, aoa)
+
+        # print(index)
+
+        Cd   = np.load('/scratch/09909/smata/induction_modeling/madsen_modeling/rotorAvg_10MW/processedData/wrf_CD.npy')[:,:,index]
+        Cl   = np.load('/scratch/09909/smata/induction_modeling/madsen_modeling/rotorAvg_10MW/processedData/wrf_CL.npy')[:,:,index]
+
+        # Vax  = np.load('/scratch/09909/smata/induction_modeling/madsen_modeling/rotorAvg_10MW/processedData/wrf_vax.npy')[:,:,index]
+        # Vtan = np.load('/scratch/09909/smata/induction_modeling/madsen_modeling/rotorAvg_10MW/processedData/wrf_vtn.npy')[:,:,index]
+        # phi  = np.load('/scratch/09909/smata/induction_modeling/madsen_modeling/rotorAvg_10MW/processedData/wrf_phi.npy')[:,:,index]
+        # aoa  = phi - rotor.twist(geom.mu_mesh) - pitch
+
 
         solidity = rotor.solidity(geom.mu_mesh)
 
@@ -223,6 +241,7 @@ class KraghAerodynamics(AerodynamicModel):
             aoa = aoa,
             Cl = Cl,
             Cd = Cd,
+            index=index,
         )
 
         return aero_props

@@ -5,6 +5,7 @@ from numpy.typing import ArrayLike
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from itertools import product
 
 from UnifiedMomentumModel import Momentum as UMM
 
@@ -80,7 +81,7 @@ class MomentumModel(ABC):
     ) -> ArrayLike:
         ...
 
-    def _func_annulus(
+    def _func_rotor(
         self,
         aero_props: "AerodynamicProperties",
         pitch: float,
@@ -98,7 +99,7 @@ class MomentumModel(ABC):
                     )
         )
 
-        return self.compute_induction(rotor_avg_axial_force, yaw)
+        return self.compute_induction(aero_props, geom)
 
 
     def _func_annulus(
@@ -162,18 +163,16 @@ class MomentumModel(ABC):
 class ConstantInduction(MomentumModel):
     def __init__(self, a):
         self.a = a
+        self._func = self._func_rotor
 
-    def _func(
+    def compute_induction(
         self,
         aero_props: "AerodynamicProperties",
-        pitch: float,
-        tsr: float,
-        yaw: float,
-        rotor: "RotorDefinition",
         geom: "BEMGeometry",
-        a: float,
     ) -> ArrayLike:
-        return self.a * np.ones_like(aero_props.an)
+        # Ct = aero_props.solidity * aero_props.W**2 * aero_props.C_x
+
+        return self.a * np.ones_like(geom.mu_mesh)
 
 
 class ClassicalMomentum(MomentumModel):
@@ -188,8 +187,8 @@ class ClassicalMomentum(MomentumModel):
             raise ValueError(f"Averaging method {averaging} not found for ClassicalMomentum model.")
         self.averaging = averaging
 
-    def compute_induction(self, Cx, yaw):
-        return 0.5 * (1 - np.sqrt(1 - Cx))
+    def compute_induction(self, aero_props, geom):
+        return 0.5 * (1 - np.sqrt(1 - aero_props.C_x))
 
 class NeuralNetInduction(MomentumModel):
     def __init__(self, cosine_exponent=None, shear=0, veer=0):
@@ -306,150 +305,283 @@ class MadsenMomentum(MomentumModel):
 
         an = Ct**3 * 0.0883 + Ct**2 * 0.0586 + Ct * 0.2460
         return an
+
+class Madsen_Rotor_Momentum_PosV_NoS(MomentumModel):
+    def __init__(self, veer):
+        self.veer  = veer
+        self._func = self._func_rotor
+
+    def compute_induction(self, aero_props, geom) -> ArrayLike:
+
+        Ct = aero_props.C_x
+
+        Ct = geom.rotor_average(geom.annulus_average(np.clip(Ct, 0.0, 1.69)))
+        
+        if int(self.veer) == 8:
+            a,b,c = 0.222, 0.014, 0.253
+        elif int(self.veer) == 7:
+            a,b,c = 0.206, 0.018, 0.253
+        elif int(self.veer) == 6:
+            a,b,c = 0.186, 0.023, 0.252
+        elif int(self.veer) == 5:
+            a,b,c = 0.165, 0.028, 0.252
+        elif int(self.veer) == 4:
+            a,b,c = 0.145, 0.034, 0.252
+        elif int(self.veer) == 3:
+            a,b,c = 0.126, 0.039, 0.251
+        elif int(self.veer) == 2:
+            a,b,c = 0.110, 0.043, 0.251
+        elif int(self.veer) == 1:
+            a,b,c = 0.099, 0.046, 0.251
+        elif int(self.veer) == 0:
+            a,b,c = 0.093, 0.048, 0.251
+        else:
+            raise ValueError(f"Unsupported veer: {self.veer}")
+
+        return a * Ct**3 + b * Ct**2 + c * Ct
     
-
-
-
-class Madsen_Annulus_Momentum(MomentumModel):
-    def __init__(self, cosine_exponent=None, veer=0):
-        self.cosine_exponent = cosine_exponent
+class Madsen_Rotor_Momentum_NegV_NoS(MomentumModel):
+    def __init__(self, veer):
         self.veer  = veer
+        self._func = self._func_rotor
 
-    def Ct_a(self, Ct: ArrayLike,) -> ArrayLike:
-        Ct = np.clip(Ct, 0.0, 1.44)
+    def compute_induction(self, aero_props, geom) -> ArrayLike:
 
-        if int(abs(self.veer)) == 0:
-            an = 0.184 * (Ct**3) + -0.128 * (Ct**2) + 0.271 * Ct +0.05
-        elif int(abs(self.veer)) == 2:
-            an = Ct**3 * 0.166 + Ct**2 * -0.139+ Ct * 0.347 +0.05
-        elif int(abs(self.veer)) == 4:
-            an = Ct**3 * 0.129 + Ct**2 * -0.099 + Ct * 0.394 +0.05
+        Ct = aero_props.C_x_corr
+
+        Ct = geom.rotor_average(geom.annulus_average(np.clip(Ct, 0.0, 1.69)))
+        # theta = np.linspace(0.0, 2 * np.pi, 158)
+        # mu = np.linspace(0, 0.99999, 26)
+
+        # Ct = 2 * np.trapezoid(1/(2 * np.pi) * np.trapezoid(np.clip(Ct, 0.0, 1.69), theta, axis=-1) * mu, mu)
+        
+        # theta = np.linspace(0, 2*np.pi,158)
+        # mu = np.array([0.04288751, 0.08042134, 0.11795516, 0.15548898, 0.19302281,0.23055663, 0.26809045, 0.30562428, 0.3431581 , 0.38069192,0.41822574, 0.45575957, 0.49329339, 0.53082721, 0.56836104,0.60589486, 0.64342868, 0.6809625 , 0.71849633, 0.75603015,0.79356397, 0.8310978 , 0.86863162, 0.90616544, 0.94369927,0.98123309])
+
+        # Ct = 2 * np.trapezoid(1/(2 * np.pi) * np.trapezoid(aero_props.C_x, theta, axis=-1) * mu, mu)
+
+        # print(f'CT is: {Ct} \n')
+
+        # if int(self.veer) == -8:
+        #     a,b,c = 0.167, 0.028, 0.252
+        # elif int(self.veer) == -7:
+        #     a,b,c = 0.156, 0.031, 0.252
+        # elif int(self.veer) == -6:
+        #     a,b,c = 0.143, 0.034, 0.252
+        # elif int(self.veer) == -5:
+        #     a,b,c = 0.129, 0.038, 0.251
+        # elif int(self.veer) == -4:
+        # a,b,c = 0.116, 0.041, 0.251
+        # elif int(self.veer) == -3:
+        #     a,b,c = 0.105, 0.044, 0.251
+        # elif int(self.veer) == -2:
+        #     a,b,c = 0.097, 0.047, 0.251
+        # elif int(self.veer) == -1:
+        #     a,b,c = 0.092, 0.048, 0.251
+        # elif int(self.veer) == 0:
+        # a,b,c = 0.09334, 0.04743, 0.25086
+        if int(self.veer) == -8:
+            a,b,c = 0.1580, 0.0304, 0.2519
+        elif int(self.veer) == -7:
+            a,b,c = 0.1476, 0.0332, 0.2517
+        elif int(self.veer) == -6:
+            a,b,c = 0.1353, 0.0364, 0.2515
+        elif int(self.veer) == -5:
+            a,b,c = 0.1222, 0.0398, 0.2513
+        elif int(self.veer) == -4:
+            a,b,c = 0.1094, 0.0432, 0.2511
+        elif int(self.veer) == -3:
+            a,b,c = 0.0986, 0.0460, 0.2509
+        elif int(self.veer) == -2:
+            a,b,c = 0.0909, 0.0481, 0.2508
+        elif int(self.veer) == -1:
+            a,b,c = 0.0869, 0.0491, 0.2508
+        elif int(self.veer) == 0:
+            a,b,c = 0.0875, 0.0490, 0.2508
         else:
             raise ValueError(f"Unsupported veer: {self.veer}")
 
-        return an
+        # print(f'a is: {a * Ct**3 + b * Ct**2 + c * Ct } \n')
+        return a * Ct**3 + b * Ct**2 + c * Ct 
+        # return 1/3
 
-    def __call__(
-        self,
-        aero_props: "AerodynamicProperties",
-        pitch: float,
-        tsr: float,
-        yaw: float,
-        rotor: "RotorDefinition",
-        geom: "BEMGeometry",
-        a: float,
-    ) -> ArrayLike:
-
-        Ct = geom.annulus_average(aero_props.solidity * aero_props.W**2 * aero_props.Cax)
-
-        an = self.Ct_a(Ct)[:, None] * np.ones(geom.shape)
-
-        return an
-
-class Madsen_10MWAnnulus_Momentum(MomentumModel):
-    def __init__(self, cosine_exponent=None, veer=0):
-        self.cosine_exponent = cosine_exponent
+class Madsen_Rotor_Momentum_AllV_NoS(MomentumModel):
+    def __init__(self, veer):
         self.veer  = veer
+        self._func = self._func_rotor
 
-    def Ct_a(self, Ct: ArrayLike,) -> ArrayLike:
-        Ct = np.clip(Ct, 0.0, 1.44)
+    def compute_induction(self, aero_props, geom) -> ArrayLike:
 
-        if int(abs(self.veer)) == 0:
-            an = 0.184 * (Ct**3) + -0.149 * (Ct**2) + 0.308 * Ct
-        elif int(abs(self.veer)) == 2:
-            an = Ct**3 * 0.172 + Ct**2 * -0.170+ Ct * 0.383
-        elif int(abs(self.veer)) == 4:
-            an = Ct**3 * 0.127 + Ct**2 * -0.101 + Ct * 0.407
+        Ct = aero_props.C_x
+
+        Ct = geom.rotor_average(geom.annulus_average(np.clip(Ct, 0.0, 1.69)))
+        
+        if int(self.veer) == -8:
+            a,b,c = 0.167, 0.028, 0.252
+        elif int(self.veer) == -7:
+            a,b,c = 0.156, 0.031, 0.252
+        elif int(self.veer) == -6:
+            a,b,c = 0.143, 0.034, 0.252
+        elif int(self.veer) == -5:
+            a,b,c = 0.129, 0.038, 0.251
+        elif int(self.veer) == -4:
+            a,b,c = 0.116, 0.041, 0.251
+        elif int(self.veer) == -3:
+            a,b,c = 0.105, 0.044, 0.251
+        elif int(self.veer) == -2:
+            a,b,c = 0.097, 0.047, 0.251
+        elif int(self.veer) == -1:
+            a,b,c = 0.092, 0.048, 0.251
+        elif int(self.veer) == 0:
+            a,b,c = 0.093, 0.048, 0.251
+        elif int(self.veer) == 1:
+            a,b,c = 0.099, 0.046, 0.251
+        elif int(self.veer) == 2:
+            a,b,c = 0.110, 0.043, 0.251
+        elif int(self.veer) == 3:
+            a,b,c = 0.126, 0.039, 0.251
+        elif int(self.veer) == 4:
+            a,b,c = 0.145, 0.034, 0.252
+        elif int(self.veer) == 5:
+            a,b,c = 0.165, 0.028, 0.252
+        elif int(self.veer) == 6:
+            a,b,c = 0.186, 0.023, 0.252
+        elif int(self.veer) == 7:
+            a,b,c = 0.206, 0.018, 0.253
+        if int(self.veer) == 8:
+            a,b,c = 0.222, 0.014, 0.253
         else:
             raise ValueError(f"Unsupported veer: {self.veer}")
 
-        return an
+        return a * Ct**3 + b * Ct**2 + c * Ct
 
-    def __call__(
-        self,
-        aero_props: "AerodynamicProperties",
-        pitch: float,
-        tsr: float,
-        yaw: float,
-        rotor: "RotorDefinition",
-        geom: "BEMGeometry",
-        a: float,
-    ) -> ArrayLike:
-
-        Ct = geom.annulus_average(aero_props.solidity * aero_props.W**2 * aero_props.Cax)
-
-        an = self.Ct_a(Ct)[:, None] * np.ones(geom.shape)
-
-        return an
-
-class Madsen_Rotor_Momentum(MomentumModel):
-    def __init__(self, cosine_exponent=None, veer=0):
-        self.cosine_exponent = cosine_exponent
+class Madsen_Rotor_Momentum_AbsV_NoS(MomentumModel):
+    def __init__(self, veer):
         self.veer  = veer
+        self._func = self._func_rotor
 
-    def Ct_a(self, Ct: ArrayLike,) -> ArrayLike:
-        Ct = np.clip(Ct, 0.0, 1.44)
+    def compute_induction(self, aero_props, geom) -> ArrayLike:
 
-        if int(abs(self.veer)) == 0:
-            an = 0.139 * (Ct**3) + -0.063 * (Ct**2) +  0.268 * Ct 
-        elif int(abs(self.veer)) == 2:
-            an = Ct**3 * 0.083 + Ct**2 * 0.069+ Ct * 0.244
-        elif int(abs(self.veer)) == 4:
-            an = Ct**3 * 0.034 + Ct**2 * 0.248 + Ct * 0.201
+        Ct = aero_props.C_x
+
+        Ct = geom.rotor_average(geom.annulus_average(np.clip(Ct, 0.0, 1.69)))
+        
+        if abs(int(self.veer)) == 8:
+            a,b,c = 1.181, -0.722, 0.250
+        elif abs(int(self.veer)) == 7:
+            a,b,c = 1.201, -0.746, 0.250
+        elif abs(int(self.veer)) == 6:
+            a,b,c = 1.192, -0.750, 0.250
+        elif abs(int(self.veer)) == 5:
+            a,b,c = 1.156, -0.735, 0.250
+        elif abs(int(self.veer)) == 4:
+            a,b,c = 1.101, -0.705, 0.250
+        elif abs(int(self.veer)) == 3:
+            a,b,c = 1.038, -0.668, 0.250
+        elif abs(int(self.veer)) == 2:
+            a,b,c = 0.977, -0.628, 0.250
+        elif abs(int(self.veer)) == 1:
+            a,b,c = 0.925, -0.594, 0.250
+        elif abs(int(self.veer)) == 0:
+            a,b,c = 0.118, 0.023, 0.254
         else:
             raise ValueError(f"Unsupported veer: {self.veer}")
 
-        return an
-
-    def __call__(
-        self,
-        aero_props: "AerodynamicProperties",
-        pitch: float,
-        tsr: float,
-        yaw: float,
-        rotor: "RotorDefinition",
-        geom: "BEMGeometry",
-        a: float,
-    ) -> ArrayLike:
-
-        Ct = geom.annulus_average(aero_props.solidity * aero_props.W**2 * aero_props.Cax)
-
-        an = self.Ct_a(Ct)[:, None] * np.ones(geom.shape)
-
-        return an
-
-class Madsen_10MWRotor_Momentum(MomentumModel):
-    def __init__(self, cosine_exponent=None, veer=0):
-        self.cosine_exponent = cosine_exponent
+        return a * Ct**3 + b * Ct**2 + c * Ct
+    
+class Madsen_Rotor_Momentum_AbsV_AllS(MomentumModel):
+    def __init__(self, veer):
         self.veer  = veer
+        self._func = self._func_rotor
 
-    def Ct_a(self, Ct: ArrayLike,) -> ArrayLike:
-        Ct = np.clip(Ct, 0.0, 1.44)
+    def compute_induction(self, aero_props, geom) -> ArrayLike:
 
-        if int(abs(self.veer)) == 0:
-            an = 0.139 * (Ct**3) + -0.063 * (Ct**2) +  0.268 * Ct 
-        elif int(abs(self.veer)) == 2:
-            an = Ct**3 * 0.083 + Ct**2 * 0.069+ Ct * 0.244
-        elif int(abs(self.veer)) == 4:
-            an = Ct**3 * 0.034 + Ct**2 * 0.248 + Ct * 0.201
+        Ct = aero_props.C_x
+
+        # Ct = geom.rotor_average(geom.annulus_average(np.clip(Ct, 0.0, 1.69)))
+
+        theta = np.linspace(0, 2*np.pi,158)
+        mu = np.array([0.04288751, 0.08042134, 0.11795516, 0.15548898, 0.19302281,0.23055663, 0.26809045, 0.30562428, 0.3431581 , 0.38069192,0.41822574, 0.45575957, 0.49329339, 0.53082721, 0.56836104,0.60589486, 0.64342868, 0.6809625 , 0.71849633, 0.75603015,0.79356397, 0.8310978 , 0.86863162, 0.90616544, 0.94369927,0.98123309])
+
+        Ct = 2 * np.trapezoid(1/(2 * np.pi) * np.trapezoid(aero_props.C_x, theta, axis=-1) * mu, mu)
+
+        print(f'CT is: {Ct} \n')
+        
+        if abs(int(self.veer)) == 8:
+            a,b,c = 1.366, -1.094, 0.422
+        elif abs(int(self.veer)) == 7:
+            a,b,c = 1.395, -1.134, 0.428
+        elif abs(int(self.veer)) == 6:
+            a,b,c = 1.368, -1.125, 0.427
+        elif abs(int(self.veer)) == 5:
+            a,b,c = 0.968, -0.721, 0.343
+        elif abs(int(self.veer)) == 4:
+            a,b,c = 1.014, -0.822, 0.383
+        elif abs(int(self.veer)) == 3:
+            a,b,c = 0.428, -0.273, 0.300
+        elif abs(int(self.veer)) == 2:
+            a,b,c = 2.334, -2.507, 0.880
+        elif abs(int(self.veer)) == 1:
+            a,b,c = -0.185, 0.323, 0.196
+        elif abs(int(self.veer)) == 0:
+            a,b,c = -0.314, 0.434, 0.185
         else:
             raise ValueError(f"Unsupported veer: {self.veer}")
+        
+        # print(a * Ct**3 + b * Ct**2 + c * Ct)
 
-        return an
+        return a * Ct**3 + b * Ct**2 + c * Ct
 
-    def __call__(
-        self,
-        aero_props: "AerodynamicProperties",
-        pitch: float,
-        tsr: float,
-        yaw: float,
-        rotor: "RotorDefinition",
-        geom: "BEMGeometry",
-        a: float,
-    ) -> ArrayLike:
 
-        Ct = geom.annulus_average(aero_props.solidity * aero_props.W**2 * aero_props.Cax)
+class Madsen_Rotor_Momentum_AllV_AllS(MomentumModel):
+    def __init__(self, veer):
+        self.veer  = veer
+        self._func = self._func_rotor
 
-        an = self.Ct_a(Ct)[:, None] * np.ones(geom.shape)
+    def compute_induction(self, aero_props, geom) -> ArrayLike:
 
-        return an
+        Ct = aero_props.C_x
+
+        Ct = geom.rotor_average(geom.annulus_average(Ct))
+        
+        a_coeffs = np.load('/scratch/09909/smata/induction_modeling/madsen_modeling/rotorAvg_10MW/processedData/a_coeffs.npy')
+        b_coeffs = np.load('/scratch/09909/smata/induction_modeling/madsen_modeling/rotorAvg_10MW/processedData/b_coeffs.npy')
+        c_coeffs = np.load('/scratch/09909/smata/induction_modeling/madsen_modeling/rotorAvg_10MW/processedData/c_coeffs.npy')
+
+        a = a_coeffs[self.veer[0],self.veer[1]] * Ct**3 + b_coeffs[self.veer[0],self.veer[1]] * Ct**2 + c_coeffs[self.veer[0],self.veer[1]] * Ct
+
+        # print(a_coeffs[self.veer[0],self.veer[1]])
+
+        return a
+
+class Madsen_committee(MomentumModel):
+    def __init__(self, veer):
+        self.veer  = veer
+        self._func = self._func_rotor
+
+    def compute_induction(self, aero_props, geom) -> ArrayLike:
+
+        Ct = aero_props.C_x
+
+        Ct = geom.rotor_average(geom.annulus_average(np.clip(Ct, 0.0, 1.69)))
+        
+        if int(self.veer) == -8:
+            a,b,c = 0.1782, 0.0251, 0.2522
+        elif int(self.veer) == -4:
+            a,b,c = 0.1278, 0.0384, 0.2514
+        elif int(self.veer) == -2:
+            a,b,c = 0.1084, 0.0435, 0.2511
+        elif int(self.veer) == -1:
+            a,b,c = 0.1040, 0.0446, 0.2510
+        elif int(self.veer) == 0:
+            a,b,c = 0.1043, 0.0445, 0.2510
+        elif int(self.veer) == 1:
+            a,b,c = 0.1099, 0.0431, 0.2511
+        elif int(self.veer) == 2:
+            a,b,c = 0.1205, 0.0403, 0.2513
+        elif int(self.veer) == 4:
+            a,b,c = 0.1535, 0.0316, 0.2518
+        elif int(self.veer) == 8:
+            a,b,c = 0.2274, 0.0122, 0.2529
+
+        return a * Ct**3 + b * Ct**2 + c * Ct
