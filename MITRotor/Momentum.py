@@ -120,7 +120,7 @@ class MomentumModel(ABC):
                     )[:, None] * np.ones(geom.shape)
         
 
-        return self.compute_induction(annulus_avg_axial_force, yaw)
+        return self.compute_induction(aero_props, geom)
 
     def _func_sector(
         self,
@@ -133,7 +133,7 @@ class MomentumModel(ABC):
     ) -> ArrayLike:
         axial_force = aero_props.C_x_corr
 
-        return self.compute_induction(axial_force, yaw)
+        return self.compute_induction(geom)
 
     def _func_NN_sector(
         self,
@@ -163,11 +163,10 @@ class MomentumModel(ABC):
 class ConstantInduction(MomentumModel):
     def __init__(self, a):
         self.a = a
-        self._func = self._func_rotor
+        self._func = self._func_sector
 
     def compute_induction(
         self,
-        aero_props: "AerodynamicProperties",
         geom: "BEMGeometry",
     ) -> ArrayLike:
         # Ct = aero_props.solidity * aero_props.W**2 * aero_props.C_x
@@ -188,7 +187,9 @@ class ClassicalMomentum(MomentumModel):
         self.averaging = averaging
 
     def compute_induction(self, aero_props, geom):
-        return 0.5 * (1 - np.sqrt(1 - aero_props.C_x))
+        # return 0.5 * (1 - np.sqrt(1 - aero_props.C_x))
+        return 0.5 * (1 - np.sqrt(1 - np.clip(aero_props.C_x, 0.0, 1)))
+
 
 class NeuralNetInduction(MomentumModel):
     def __init__(self, cosine_exponent=None, shear=0, veer=0):
@@ -551,6 +552,34 @@ class Madsen_Rotor_Momentum_AllV_AllS(MomentumModel):
         a = a_coeffs[self.veer[0],self.veer[1]] * Ct**3 + b_coeffs[self.veer[0],self.veer[1]] * Ct**2 + c_coeffs[self.veer[0],self.veer[1]] * Ct
 
         # print(a_coeffs[self.veer[0],self.veer[1]])
+
+        return a
+    
+
+class Madsen_Annulus_Momentum_AllV_AllS(MomentumModel):
+    def __init__(self, veer):
+        self.veer  = veer
+        self._func = self._func_annulus
+
+    def compute_induction(self, aero_props, geom) -> ArrayLike:
+
+        Ct = aero_props.C_x
+
+        Ct = geom.annulus_average(Ct)
+
+        # print(Ct)
+        
+        a_coeffs = np.load('/scratch/09909/smata/induction_modeling/madsen_modeling/rotorAvg_10MW/processedData/a_ann_coeffs.npy')
+        b_coeffs = np.load('/scratch/09909/smata/induction_modeling/madsen_modeling/rotorAvg_10MW/processedData/b_ann_coeffs.npy')
+        c_coeffs = np.load('/scratch/09909/smata/induction_modeling/madsen_modeling/rotorAvg_10MW/processedData/c_ann_coeffs.npy')
+
+        a = a_coeffs[self.veer[0],self.veer[1]] * Ct**3 + b_coeffs[self.veer[0],self.veer[1]] * Ct**2 + c_coeffs[self.veer[0],self.veer[1]] * Ct
+
+        # print(a_coeffs[self.veer[0],self.veer[1]])
+
+        # a = np.ones((26,158)).T * a
+
+        # a = a.reshape(-1, 1)
 
         return a
 

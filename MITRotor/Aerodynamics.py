@@ -194,16 +194,13 @@ class KraghAerodynamics(AerodynamicModel):
         """
         local_yaw = wdir - yaw
 
-        # print(f'a in the aero is: {an}')
-        # print(local_yaw)
-
         Vax = (
             U
             * (1 - an)
             * np.cos(local_yaw * np.cos(geom.theta_mesh))
             * np.cos(local_yaw * np.sin(geom.theta_mesh))
         )
-        # print(f'Vax is {Vax}')
+
         Vtan = (
             (1 + aprime) * tsr * geom.mu_mesh
             - U * (1 - an)
@@ -219,14 +216,8 @@ class KraghAerodynamics(AerodynamicModel):
 
         # print(index)
 
-        Cd   = np.load('/scratch/09909/smata/induction_modeling/madsen_modeling/rotorAvg_10MW/processedData/wrf_CD.npy')[:,:,index]
-        Cl   = np.load('/scratch/09909/smata/induction_modeling/madsen_modeling/rotorAvg_10MW/processedData/wrf_CL.npy')[:,:,index]
-
-        # Vax  = np.load('/scratch/09909/smata/induction_modeling/madsen_modeling/rotorAvg_10MW/processedData/wrf_vax.npy')[:,:,index]
-        # Vtan = np.load('/scratch/09909/smata/induction_modeling/madsen_modeling/rotorAvg_10MW/processedData/wrf_vtn.npy')[:,:,index]
-        # phi  = np.load('/scratch/09909/smata/induction_modeling/madsen_modeling/rotorAvg_10MW/processedData/wrf_phi.npy')[:,:,index]
-        # aoa  = phi - rotor.twist(geom.mu_mesh) - pitch
-
+        # Cd   = np.load('/scratch/09909/smata/induction_modeling/madsen_modeling/rotorAvg_10MW/processedData/wrf_CD.npy')[:,:,index]
+        # Cl   = np.load('/scratch/09909/smata/induction_modeling/madsen_modeling/rotorAvg_10MW/processedData/wrf_CL.npy')[:,:,index]
 
         solidity = rotor.solidity(geom.mu_mesh)
 
