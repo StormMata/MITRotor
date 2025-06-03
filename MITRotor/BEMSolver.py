@@ -7,7 +7,7 @@ from UnifiedMomentumModel.Momentum import Heck
 from UnifiedMomentumModel.Utilities.FixedPointIteration import FixedPointIterationResult, adaptivefixedpointiteration
 
 from . import Momentum, TipLoss
-from .Aerodynamics import AerodynamicModel, AerodynamicProperties, DefaultAerodynamics
+from .Aerodynamics import AerodynamicModel, AerodynamicProperties, DefaultAerodynamics, WRFLESAerodynamics
 from .Geometry import BEMGeometry
 from .RotorDefinition import RotorDefinition
 from .TangentialInduction import DefaultTangentialInduction, TangentialInductionModel

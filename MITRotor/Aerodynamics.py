@@ -14,6 +14,7 @@ __all__ = [
     "AerodynamicProperties",
     "DefaultAerodynamics",
     "KraghAerodynamics",
+    "WRFLESAerodynamics",
 ]
 
 
@@ -300,7 +301,7 @@ class DefaultAerodynamics(AerodynamicModel):
         return aero_props
 
 
-class WRFAerodynamics(AerodynamicModel):
+class WRFLESAerodynamics(AerodynamicModel):
     def __call__(
         self,
         an: ArrayLike,
@@ -315,10 +316,10 @@ class WRFAerodynamics(AerodynamicModel):
     ) -> AerodynamicProperties:
         """
         Performs the aerodynamic calculations in a blade-element code using the
-        method used in WRF-LES as implemented by Kale et al. (2022) (see eq. B.3):
+        equations in WRF-LES as implemented by Kale et al. (2022) (see eq. B.3):
         https://doi.org/10.1016/j.renene.2022.07.119
 
-        Equations are simplified to assume no cone and no tilt. Vertical velocity
+        Equations are simplified assuming no cone and no tilt. Vertical velocity
         term in the equation for Vtan is neglected.
 
         Args:
