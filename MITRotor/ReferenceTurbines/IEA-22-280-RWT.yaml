@@ -7,7 +7,7 @@ assembly:
   rotor_orientation: Upwind
   number_of_blades: 3
   hub_height: 170.0
-  rotor_diameter: 284.
+  rotor_diameter: 284.0
   rated_power: 22000000.0
   lifetime: 25.0
 components:
@@ -616,7 +616,7 @@ components:
               values: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
   hub:
     diameter: 8.4
-    cone_angle: 0.06981317007977318
+    cone_angle: 0.0
     drag_coefficient: 0.5
     flange_t2shell_t: 6.0
     flange_OD2hub_D: 0.6
@@ -636,7 +636,7 @@ components:
       system_inertia: [1882498.8832803261, 1198002.42618154, 1198002.42618154, 0.0, 0.0, 0.0]
   nacelle:
     drivetrain:
-      uptilt: 0.1047197551196598
+      uptilt: 0.0
       distance_tt_hub: 5.614
       overhang: 14.0
       drag_coefficient: 0.5

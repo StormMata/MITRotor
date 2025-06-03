@@ -4,8 +4,6 @@ import numpy as np
 from numpy.typing import ArrayLike
 import torch
 import torch.nn as nn
-import torch.optim as optim
-from itertools import product
 
 from UnifiedMomentumModel import Momentum as UMM
 

@@ -44,6 +44,8 @@ class BladeAirfoils:
 
         airfoils = {x["name"]: Airfoil.from_windio_airfoil(x, R) for x in windio["airfoils"]}
 
+        # print(airfoil_grid_adjusted)
+
         return cls(D, airfoil_grid_adjusted, airfoil_order, airfoils, N=N)
 
     def __init__(self, D, airfoil_grid, airfoil_order, airfoils, N=120):
@@ -142,7 +144,7 @@ class RotorDefinition:
         twist_grid = (hub_radius + np.array(data_twist["grid"]) * (R - hub_radius)) / R
         twist_func_old = interpolate.interp1d(twist_grid, data_twist["values"], fill_value="extrapolate")
 
-        # THIS REDEFINES THE TWIST FUNCTION AS A FUNCTION OF THE AIRFOIL GRID FOR COMPATIBILITY WITH WRF
+        # THIS REDEFINES THE TWIST FUNCTION AS A FUNCTION OF THE AIRFOIL GRID FOR COMPATIBILITY WITH WRF-LES
         twist_at_airfoil_grid = twist_func_old(airfoil_grid_adjusted)
         twist_func = interpolate.interp1d(airfoil_grid_adjusted, twist_at_airfoil_grid, kind='linear', fill_value="extrapolate")
 
@@ -150,7 +152,7 @@ class RotorDefinition:
         chord_grid = (hub_radius + np.array(data_chord["grid"]) * (R - hub_radius)) / R
         chord_func_old = interpolate.interp1d(chord_grid, data_chord["values"], fill_value="extrapolate")
 
-        # THIS REDEFINES THE CHORD FUNCTION AS A FUNCTION OF THE AIRFOIL GRID FOR COMPATIBILITY WITH WRF
+        # THIS REDEFINES THE CHORD FUNCTION AS A FUNCTION OF THE AIRFOIL GRID FOR COMPATIBILITY WITH WRF-LES
         chord_at_airfoil_grid = chord_func_old(airfoil_grid_adjusted)
         chord_func = interpolate.interp1d(airfoil_grid_adjusted, chord_at_airfoil_grid, kind='linear', fill_value="extrapolate")
 

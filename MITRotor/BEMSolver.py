@@ -1,10 +1,6 @@
 from dataclasses import dataclass, field
 from typing import Literal, Optional, Tuple
 
-import torch
-import torch.nn as nn
-import torch.optim as optim
-
 import numpy as np
 from numpy.typing import ArrayLike
 from UnifiedMomentumModel.Momentum import Heck
@@ -128,35 +124,72 @@ class BEMSolution:
         )
         return average(self.geom, dCp, grid=grid)
 
-    def power(self):
+    def FL(self, grid: Literal["sector", "annulus", "rotor"] = "sector"):
 
         if not self.v_inf == 1.0:
             rho = 1.225
 
-            # Compute rotational speed (ω)
-            omega = (self.tsr *self.v_inf) / self.rotor.R
+            # Dimensional lift forces over rotor
+            L = 1/2 * rho * self.rotor.chord_func(self.geom.mu_mesh) * (self.Cl('sector') * (self.W('sector') * self.v_inf)**2)
 
-            # Get normalized radial positions and azimuthal angles
-            theta = self.geom.theta_mesh
-            r_dim = self.geom.mu_mesh * self.rotor.R
+        else:
+            L = np.nan
 
-            # Dimensionalize velocity
-            W_dim = self.W(grid="sector") * self.v_inf
+        return average(self.geom, L, grid=grid)
+    
+    def FD(self, grid: Literal["sector", "annulus", "rotor"] = "sector"):
 
-            # Compute solidity
-            solidity = self.solidity(grid="sector")
+        if not self.v_inf == 1.0:
+            rho = 1.225
 
-            # Compute differential torque (dQ) using solidity
-            dQ = (np.pi * rho * solidity * W_dim**2 * self.Ctan(grid="sector") * r_dim**2)
+            # Dimensional drag forces over rotor
+            D = 1/2 * rho * self.rotor.chord_func(self.geom.mu_mesh) * (self.Cd('sector') * (self.W('sector') * self.v_inf)**2)
 
-            # Integrate over r 
-            Q_r_integrated = np.trapz(dQ, x=r_dim, axis=0)
+        else:
+            D = np.nan
 
-            # Integrate over theta 
-            Q_total = np.trapz(Q_r_integrated, x=theta[0, :], axis=0)
+        return average(self.geom, D, grid=grid)
+    
+    def FN(self, grid: Literal["sector", "annulus", "rotor"] = "sector"):
 
-            # Compute total power
-            P_total = (omega / (2 * np.pi)) * Q_total
+        if not self.v_inf == 1.0:
+
+            # Dimensional normal forces over rotor
+            FN = self.FL('sector') * np.cos(self.phi('sector')) + self.FD('sector') * np.sin(self.phi('sector'))
+
+        else:
+            FN = np.nan
+
+        return average(self.geom, FN, grid=grid)
+    
+    def FT(self, grid: Literal["sector", "annulus", "rotor"] = "sector"):
+
+        if not self.v_inf == 1.0:
+
+            # Dimensional tangential forces over rotor
+            FT = self.FL('sector') * np.sin(self.phi('sector')) - self.FD('sector') * np.cos(self.phi('sector'))
+
+        else:
+            FT = np.nan
+
+        return average(self.geom, FT, grid=grid)
+    
+    def power(self):
+
+        if not self.v_inf == 1.0:
+            # Dimensional radial blade element locations
+            r = self.geom.mu * self.rotor.R
+
+            # Differential blade element length
+            dr = (self.rotor.R - self.rotor.hub_radius)/self.geom.Nr
+
+            # Rotor solidity as defined in WRF
+            sigma = 3/self.geom.Ntheta
+
+            # Local power matrix
+            P = self.FT('sector').T * r * dr * sigma * self.tsr * self.v_inf / self.rotor.R
+
+            P_total = np.sum(P)
 
         else:
             P_total = np.nan
@@ -166,29 +199,16 @@ class BEMSolution:
     def thrust(self):
 
         if not self.v_inf == 1.0:
-            rho = 1.225
+            # Differential blade element length
+            dr = (self.rotor.R - self.rotor.hub_radius)/self.geom.Nr
 
-            # Get normalized radial positions and azimuthal angles
-            theta = self.geom.theta_mesh
-            r_dim = self.geom.mu_mesh * self.rotor.R 
+            # Rotor solidity as defined in WRF
+            sigma = 3/self.geom.Ntheta
 
-            # Dimensionalize velocity
-            W_dim = self.W(grid="sector") * self.v_inf
+            # Local thrust matrix
+            T = self.FN('sector') * dr * sigma
 
-            # Compute solidity
-            solidity = self.solidity(grid="sector")
-
-            # Compute differential torque (dQ) using solidity
-            dT = (np.pi * rho * solidity * W_dim**2 * self.Cax(grid="sector") * r_dim)
-
-            # Integrate over r 
-            T_r_integrated = np.trapz(dT, x=r_dim, axis=0)
-
-            # Integrate over theta
-            T_total = np.trapz(T_r_integrated, x=theta[0, :], axis=0)
-
-            # Compute total power
-            T_total = (1 / (2 * np.pi)) * T_total
+            T_total = np.sum(T)
 
         else:
             T_total = np.nan
@@ -206,45 +226,8 @@ class BEMSolution:
     def Ctprime(self, grid: Literal["sector", "annulus", "rotor"] = "rotor"):
         Ctprime = self.Ct(grid="sector") / ((1 - self.a(grid="sector")) ** 2 * np.cos(self.yaw) ** 2)
         return average(self.geom, Ctprime, grid=grid)
-
-
-class XY_Predictor(nn.Module):
-    def __init__(self):
-        super(XY_Predictor, self).__init__()
-        self.model = nn.Sequential(
-            nn.Linear(5, 64),  # Input size changed from 4 → 5
-            nn.ReLU(),
-            nn.Linear(64, 64),
-            nn.ReLU(),
-            nn.Linear(64, 1)  # Output size changed from 2 → 1 (predicting x only)
-        )
-
-    def forward(self, x):
-        return self.model(x)
-        
-def evaluate_model(model, r, theta, z1_eval, z2_eval, y_true):
-    """Evaluate the model on a specific (z1, z2) case."""
-    # Prepare input
-    X_eval = np.column_stack([r.flatten(), theta.flatten(),
-                              np.full_like(r.flatten(), z1_eval),
-                              np.full_like(r.flatten(), z2_eval),
-                              y_true.flatten()])  # Add y as input
-    X_eval_tensor = torch.tensor(X_eval, dtype=torch.float32)
-
-    # Get predictions
-    model.eval()
-    with torch.no_grad():
-        predictions = model(X_eval_tensor).numpy()
-
-    # Reshape predictions
-    x_pred = predictions[:, 0].reshape(r.shape)
-
-    return x_pred
             
-# @adaptivefixedpointiteration(max_iter=500, tolerance=1e-8, relaxations=[0.25, 0.5, 0.96])
 @adaptivefixedpointiteration(max_iter=500, tolerance=1e-4, relaxations=[0.0])
-
-# @adaptivefixedpointiteration(max_iter=max_iter, relaxations=[0.25, 0.5, 0.96])
 
 class BEM:
     """
@@ -277,9 +260,6 @@ class BEM:
         self.tangential_induction_model = tangential_induction_model or DefaultTangentialInduction()
         self.index = index or 0
 
-        # @adaptivefixedpointiteration(max_iter=max_iter, relaxations=[0.25, 0.5, 0.96])
-        # self._solidity = self.rotor.solidity(self.geometry.mu)
-
     def __call__(self, pitch: float, tsr: float, yaw: float, v_inf: float = 1.0, a: float = 1/3, a_init: Optional[ArrayLike] = None) -> BEMSolution:
         ...
 
@@ -292,6 +272,7 @@ class BEM:
         pitch: float, 
         tsr: float, 
         yaw: float = 0.0, 
+        v_inf: ArrayLike = 1.0,
         U: ArrayLike = 1.0, 
         wdir: ArrayLike = 0.0,
         index: int = 0,

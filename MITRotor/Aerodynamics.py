@@ -214,11 +214,6 @@ class KraghAerodynamics(AerodynamicModel):
 
         Cl, Cd = rotor.clcd(geom.mu_mesh, aoa)
 
-        # print(index)
-
-        # Cd   = np.load('/scratch/09909/smata/induction_modeling/madsen_modeling/rotorAvg_10MW/processedData/wrf_CD.npy')[:,:,index]
-        # Cl   = np.load('/scratch/09909/smata/induction_modeling/madsen_modeling/rotorAvg_10MW/processedData/wrf_CL.npy')[:,:,index]
-
         solidity = rotor.solidity(geom.mu_mesh)
 
         aero_props = AerodynamicProperties(
@@ -279,6 +274,76 @@ class DefaultAerodynamics(AerodynamicModel):
             - U * (1 - an)
             * np.cos(geom.theta_mesh)
             * np.sin(local_yaw)
+        )
+
+        phi = np.arctan2(Vax, Vtan)
+        aoa = phi - rotor.twist(geom.mu_mesh) - pitch
+        aoa = np.clip(aoa, -np.pi / 2, np.pi / 2)
+
+        Cl, Cd = rotor.clcd(geom.mu_mesh, aoa)
+
+        solidity = rotor.solidity(geom.mu_mesh)
+
+        aero_props = AerodynamicProperties(
+            an = an,
+            aprime = aprime,
+            solidity = solidity,
+            U = U * np.ones(geom.shape),
+            wdir = wdir * np.ones(geom.shape),
+            Vax = Vax,
+            Vtan = Vtan,
+            aoa = aoa,
+            Cl = Cl,
+            Cd = Cd,
+        )
+
+        return aero_props
+
+
+class WRFAerodynamics(AerodynamicModel):
+    def __call__(
+        self,
+        an: ArrayLike,
+        aprime: ArrayLike,
+        pitch: float,
+        tsr: float,
+        yaw: float,
+        rotor: RotorDefinition,
+        geom: BEMGeometry,
+        U: ArrayLike,
+        wdir: ArrayLike,
+    ) -> AerodynamicProperties:
+        """
+        Performs the aerodynamic calculations in a blade-element code using the
+        method used in WRF-LES as implemented by Kale et al. (2022) (see eq. B.3):
+        https://doi.org/10.1016/j.renene.2022.07.119
+
+        Equations are simplified to assume no cone and no tilt. Vertical velocity
+        term in the equation for Vtan is neglected.
+
+        Args:
+            an (ArrayLike): Axial induction radial profile.
+            aprime (ArrayLike): tangengial induction radial profile.
+            pitch (float): blade pitch angle [rad].
+            tsr (float): Rotor tip-speed ratio.
+            yaw (float): Rotor yaw angle [rad].
+            rotor (RotorDefinition): Turbine rotor definition object.
+            geom (BEMGeometry): Blade element geometry object.
+            U (ArrayLike): Inflow velocity on polar grid.
+            wdir (ArrayLike): Inflow direction on polar grid.
+
+        Returns:
+            AerodynamicProperties: Calculated aerodynamic properties stored in AerodynamicProperties object.
+
+        """
+
+        Vax = U * ((1 - an) * np.cos(wdir - yaw))
+
+        Vtan = (
+            (1 + aprime) * tsr * geom.mu_mesh
+            - U * (1 - an)
+            * np.cos(wdir - yaw)
+            * np.cos(geom.theta_mesh)
         )
 
         phi = np.arctan2(Vax, Vtan)
