@@ -29,7 +29,7 @@ class Airfoil:
     def Cd(self, angle):
         return self.Cd_interp(angle)
 
-
+# -------------------------------------------------------------------------------------------------------------------
 class BladeAirfoils:
     @classmethod
     def from_windio(cls, windio: dict, hub_radius, R, N=120):
@@ -42,15 +42,25 @@ class BladeAirfoils:
 
         airfoil_order = blade["outer_shape_bem"]["airfoil_position"]["labels"]
 
+        # Get unique labels in order of first occurrence
+        unique_labels = list(dict.fromkeys(airfoil_order))
+
+        # Create the ID mapping (1-based)
+        id_map = {label: i + 1 for i, label in enumerate(unique_labels)}
+
+        # Generate the ID array
+        airfoil_ids = np.array([id_map[name] for name in airfoil_order])
+
         airfoils = {x["name"]: Airfoil.from_windio_airfoil(x, R) for x in windio["airfoils"]}
 
         # print(airfoil_grid_adjusted)
 
-        return cls(D, airfoil_grid_adjusted, airfoil_order, airfoils, N=N)
+        return cls(D, airfoil_grid_adjusted, airfoil_order, airfoils, airfoil_ids, N=N)
 
-    def __init__(self, D, airfoil_grid, airfoil_order, airfoils, N=120):
+    def __init__(self, D, airfoil_grid, airfoil_order, airfoils, airfoil_ids, N=120):
         self.D = D
         self.airfoil_grid = airfoil_grid
+        self.airfoil_ids = airfoil_ids
 
         aoa_grid = np.linspace(-np.pi, np.pi, N)
         cl = np.array([airfoils[name].Cl(aoa_grid) for name in airfoil_order])
@@ -94,20 +104,23 @@ class BladeAirfoils:
 
     def __call__(self, x, inflow):
         return self.Cl(x, inflow), self.Cd(x, inflow)
-    
+
+# -------------------------------------------------------------------------------------------------------
     def airfoil_id_from_interp(self, x):
         """
         Mimic Fortran logic: interpolate floating-point airfoil IDs from grid positions,
         then round and clamp to valid integer indices.
         """
+
         # Floating-point interpolation of airfoil index
-        airfoil_id_float = np.interp(x.ravel(), self.airfoil_grid, np.arange(len(self.airfoil_grid)))
+        airfoil_id_float = np.interp(x.ravel(), self.airfoil_grid, self.airfoil_ids)
         
         # Round to nearest and clamp between 0 and len-1 (Python is 0-based)
         airfoil_id_int = np.clip(np.round(airfoil_id_float), 0, len(self.airfoil_grid) - 1).astype(int)
 
         return airfoil_id_int.reshape(x.shape)
 
+# -------------------------------------------------------------------------------------------------------------------
 
 class RotorDefinition:
     @classmethod
