@@ -57,7 +57,7 @@ class AerodynamicProperties:
     aoa: ArrayLike
     Cl: ArrayLike
     Cd: ArrayLike
-    index: int
+    # index: int
     F: Optional[ArrayLike] = None
 
     def __post_init__(self):
@@ -135,7 +135,6 @@ class AerodynamicModel(ABC):
         geom: BEMGeometry,
         U: ArrayLike,
         wdir: ArrayLike,
-        index: int,
     ) -> AerodynamicProperties:
         """
         Performs the aerodynamic calculations in a blade-element code.
@@ -170,7 +169,6 @@ class KraghAerodynamics(AerodynamicModel):
         geom: BEMGeometry,
         U: ArrayLike,
         wdir: ArrayLike,
-        index: int,
     ) -> AerodynamicProperties:
         """
         Performs the aerodynamic calculations in a blade-element code using the
@@ -228,7 +226,7 @@ class KraghAerodynamics(AerodynamicModel):
             aoa = aoa,
             Cl = Cl,
             Cd = Cd,
-            index=index,
+            # index=index,
         )
 
         return aero_props
@@ -369,57 +367,57 @@ class WRFLESAerodynamics(AerodynamicModel):
 
         return aero_props
 
-@staticmethod
-def rotGlobalToLocal(Nelm,Nsct,u_rotor,v_rotor,w_rotor):
-    """
-    Replicates the matrix equations implemented in WRF-LES
+    @staticmethod
+    def rotGlobalToLocal(Nelm,Nsct,u_rotor,v_rotor,w_rotor):
+        """
+        Replicates the matrix equations implemented in WRF-LES
 
-    Args:
+        Args:
 
 
-    Returns:
-        Axial, tangential (wihtout rotation), and radial velocity components pointwise over the rotor
+        Returns:
+            Axial, tangential (wihtout rotation), and radial velocity components pointwise over the rotor
 
-    """
-    precone = 0
-    tilt    = 0
-    trbYaw  = 0
+        """
+        precone = 0
+        tilt    = 0
+        trbYaw  = 0
 
-    psi = 0.0
-    angle = 2 * np.pi / Nsct
+        psi = 0.0
+        angle = 2 * np.pi / Nsct
 
-    Ux   = np.zeros_like(u_rotor,dtype='float')
-    Utau = np.zeros_like(u_rotor,dtype='float')
-    Ur   = np.zeros_like(u_rotor,dtype='float')
+        Ux   = np.zeros_like(u_rotor,dtype='float')
+        Utau = np.zeros_like(u_rotor,dtype='float')
+        Ur   = np.zeros_like(u_rotor,dtype='float')
 
-    for i in range(Nelm):
-        for j in range(Nsct):
-            transposePrecone = np.array([[ np.cos(precone), 0,  np.sin(precone)],
-                                         [0,                1,                0],
-                                         [-np.sin(precone), 0,  np.cos(precone)]])
+        for i in range(Nelm):
+            for j in range(Nsct):
+                transposePrecone = np.array([[ np.cos(precone), 0,  np.sin(precone)],
+                                            [0,                1,                0],
+                                            [-np.sin(precone), 0,  np.cos(precone)]])
 
-            transposeAzimuth = np.array([[1,                0,                0],
-                                         [0,      np.cos(psi),      np.sin(psi)],
-                                         [0,     -np.sin(psi),      np.cos(psi)]])
+                transposeAzimuth = np.array([[1,                0,                0],
+                                            [0,      np.cos(psi),      np.sin(psi)],
+                                            [0,     -np.sin(psi),      np.cos(psi)]])
 
-            transposeTilt    = np.array([[np.cos(tilt),     0,    -np.sin(tilt)],
-                                         [0,                1,                0],
-                                         [np.sin(tilt),     0,     np.cos(tilt)]])
+                transposeTilt    = np.array([[np.cos(tilt),     0,    -np.sin(tilt)],
+                                            [0,                1,                0],
+                                            [np.sin(tilt),     0,     np.cos(tilt)]])
 
-            transposeYaw     = np.array([[np.cos(trbYaw),  np.sin(trbYaw),    0],
-                                         [-np.sin(trbYaw), np.cos(trbYaw),    0],
-                                         [0,                0,                1]])
+                transposeYaw     = np.array([[np.cos(trbYaw),  np.sin(trbYaw),    0],
+                                            [-np.sin(trbYaw), np.cos(trbYaw),    0],
+                                            [0,                0,                1]])
 
-            psi = psi + angle
+                psi = psi + angle
 
-            PreconeAzimuth        = np.matmul(transposePrecone,   transposeAzimuth)
-            PreconeAzimuthTilt    = np.matmul(PreconeAzimuth,     transposeTilt)
-            PreconeAzimuthTiltYaw = np.matmul(PreconeAzimuthTilt, transposeYaw)
+                PreconeAzimuth        = np.matmul(transposePrecone,   transposeAzimuth)
+                PreconeAzimuthTilt    = np.matmul(PreconeAzimuth,     transposeTilt)
+                PreconeAzimuthTiltYaw = np.matmul(PreconeAzimuthTilt, transposeYaw)
 
-            local = np.matmul(PreconeAzimuthTiltYaw, np.array([[u_rotor[i,j]], [v_rotor[i,j]], [w_rotor[i,j]]]))
+                local = np.matmul(PreconeAzimuthTiltYaw, np.array([[u_rotor[i,j]], [v_rotor[i,j]], [w_rotor[i,j]]]))
 
-            Ux[i,j]   = local[0][0]
-            Utau[i,j] = local[1][0]
-            Ur[i,j]   = local[2][0]
+                Ux[i,j]   = local[0][0]
+                Utau[i,j] = local[1][0]
+                Ur[i,j]   = local[2][0]
 
-    return Ux, Utau, Ur
+        return Ux, Utau, Ur

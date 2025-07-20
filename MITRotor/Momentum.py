@@ -4,6 +4,8 @@ import numpy as np
 from numpy.typing import ArrayLike
 import torch
 import torch.nn as nn
+import joblib
+import pickle
 
 from UnifiedMomentumModel import Momentum as UMM
 
@@ -24,6 +26,8 @@ __all__ = [
     "Madsen_10MWAnnulus_Momentum",
     "Madsen_Rotor_Momentum",
     "Madsen_10MWRotor_Momentum",
+    "GP_Rotor",
+    "GP_Annulus"
 ]
 
 class XY_Predictor(nn.Module):
@@ -186,7 +190,8 @@ class ClassicalMomentum(MomentumModel):
 
     def compute_induction(self, aero_props, geom):
         # return 0.5 * (1 - np.sqrt(1 - aero_props.C_x))
-        return 0.5 * (1 - np.sqrt(1 - np.clip(aero_props.C_x, 0.0, 1)))
+        Ct = geom.rotor_average(geom.annulus_average(np.clip(aero_props.C_x, 0.0, 1.69)))
+        return 0.5 * (1 - np.sqrt(1 - Ct))
 
 
 class NeuralNetInduction(MomentumModel):
@@ -296,11 +301,13 @@ class MadsenMomentum(MomentumModel):
         self.cosine_exponent = cosine_exponent
 
 
-    def compute_induction(self, Cx: ArrayLike, yaw: float) -> ArrayLike:
-        if self.cosine_exponent:
-            Ct = Cx / (np.cos(yaw)**2)
-        else:
-            Ct = Cx
+    def compute_induction(self, aero_props, geom) -> ArrayLike:
+        # if self.cosine_exponent:
+        #     Ct = aero_props.C_x / (np.cos(yaw)**2)
+        # else:
+        Ct = aero_props.C_x
+
+        Ct = geom.rotor_average(geom.annulus_average(np.clip(Ct, 0.0, 1.69)))
 
         an = Ct**3 * 0.0883 + Ct**2 * 0.0586 + Ct * 0.2460
         return an
@@ -612,3 +619,86 @@ class Madsen_committee(MomentumModel):
             a,b,c = 0.2274, 0.0122, 0.2529
 
         return a * Ct**3 + b * Ct**2 + c * Ct
+
+class GP_Rotor(MomentumModel):
+    def __init__(self, veer):
+        self.veer  = np.array(veer)
+        self._func = self._func_rotor
+        self.shear = np.array(0.0)
+
+    def compute_induction(self, aero_props, geom) -> ArrayLike:
+
+        Ct = aero_props.C_x
+
+        # print(Ct)
+
+        Ct = geom.rotor_average(geom.annulus_average(Ct))
+
+        # Ct = np.array(0.69)
+        
+        GPR = joblib.load('/home1/09909/smata/dir_scratch/induction_modeling/gaussian_process/10MW/results/rotor/wrf_10MW_rot_GPR.pkl')
+
+        with open('/home1/09909/smata/dir_scratch/induction_modeling/gaussian_process/10MW/train_data/scaler_wrf_cot_rot.pkl', 'rb') as f:
+            cot_scalar = pickle.load(f)
+
+        with open('/home1/09909/smata/dir_scratch/induction_modeling/gaussian_process/10MW/train_data/scaler_shears_rot.pkl', 'rb') as f:
+            shear_scalar = pickle.load(f)
+
+        with open('/home1/09909/smata/dir_scratch/induction_modeling/gaussian_process/10MW/train_data/scaler_veers_rot.pkl', 'rb') as f:
+            veer_scalar = pickle.load(f)
+
+        with open('/home1/09909/smata/dir_scratch/induction_modeling/gaussian_process/10MW//train_data/scaler_wrf_ind_rot.pkl', 'rb') as f:
+            ind_scalar = pickle.load(f)
+
+        cot_trans   = cot_scalar.transform(Ct.reshape(-1, 1)).ravel()
+        shear_trans = shear_scalar.transform(self.shear.reshape(-1, 1)).ravel()
+        veer_trans  = veer_scalar.transform(self.veer.reshape(-1, 1)).ravel()
+
+        X_input = np.column_stack([cot_trans, shear_trans, veer_trans])
+        A_pred, std = GPR.predict(X_input, return_std=True)
+
+        # A_pred = np.clip(A_pred, ind_scalar.data_min_, ind_scalar.data_max_)
+
+        a = ind_scalar.inverse_transform(A_pred.reshape(-1, 1)).ravel()
+
+        print(f'CT:{Ct}')
+        # print(f'std:{std}')
+        # print(f'sheer:{shear_trans}')
+        # print(f'veer:{veer_trans}')
+
+        print(f'CT:{cot_trans}')
+        print(f'sheer:{shear_trans}')
+        print(f'veer:{veer_trans}')
+        print(f'a:{a}')
+
+        return a
+
+class GP_Annulus(MomentumModel):
+    def __init__(self, veer):
+        self.veer  = veer
+        self._func = self._func_annulus
+        self.shear = 0
+
+    def compute_induction(self, aero_props, geom) -> ArrayLike:
+
+        Ct = aero_props.C_x
+
+        Ct = geom.annulus_average(Ct)
+
+        GPR = joblib.load('/home1/09909/smata/dir_scratch/induction_modeling/gaussian_process/10MW/results/annulus/wrf_10MW_ann_GPR.pkl')
+
+        with open('/home1/09909/smata/dir_scratch/induction_modeling/gaussian_process/10MW/train_data/scaler_wrf_cot_ann.pkl', 'rb') as f:
+            cot_scalar = pickle.load(f)
+
+        with open('/home1/09909/smata/dir_scratch/induction_modeling/gaussian_process/10MW/train_data/scaler_shears_ann.pkl', 'rb') as f:
+            shear_scalar = pickle.load(f)
+
+        with open('/home1/09909/smata/dir_scratch/induction_modeling/gaussian_process/10MW/train_data/scaler_veers_ann.pkl', 'rb') as f:
+            veer_scalar = pickle.load(f)
+
+        with open('/home1/09909/smata/dir_scratch/induction_modeling/gaussian_process/10MW//train_data/scaler_wrf_ind_ann.pkl', 'rb') as f:
+            ind_scalar = pickle.load(f)
+
+        A_pred = GPR.predict([self.mu, cot_scalar.transform(Ct), shear_scalar.transform(self.shear), veer_scalar.transform(self.veer)], return_std=False)
+
+        return ind_scalar.inverse_transform(A_pred)
