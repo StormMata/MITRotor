@@ -228,7 +228,7 @@ class BEMSolution:
         return average(self.geom, Ctprime, grid=grid)
             
 # @adaptivefixedpointiteration(max_iter=500, tolerance=1e-4, relaxations=[0.0])
-@adaptivefixedpointiteration(max_iter=500, tolerance=1e-4, relaxations=[0.96])
+@adaptivefixedpointiteration(max_iter=100, tolerance=1e-4, relaxations=[0.2, 0.5, 0.95])
 
 class BEM:
     """
@@ -250,7 +250,6 @@ class BEM:
         momentum_model: Optional[Momentum.MomentumModel] = None,
         tangential_induction_model: Optional[TangentialInductionModel] = None,
         aerodynamic_model: Optional[AerodynamicModel] = None,
-        # index: Optional[int] = None,
     ):
         self.rotor = rotor
 
@@ -259,7 +258,6 @@ class BEM:
         self.tiploss_model: TipLoss.TipLossModel = tiploss_model or TipLoss.PrandtlTipLoss(root_loss=True)
         self.momentum_model: Momentum.MomentumModel = momentum_model or Momentum.HeckMomentum()
         self.tangential_induction_model = tangential_induction_model or DefaultTangentialInduction()
-        # self.index = index or 0
 
     def __call__(self, pitch: float, tsr: float, yaw: float, v_inf: float = 1.0, a: float = 1/3, a_init: Optional[ArrayLike] = None) -> BEMSolution:
         ...
