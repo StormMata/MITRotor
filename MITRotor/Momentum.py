@@ -579,7 +579,7 @@ class GP_Rotor(MomentumModel):
 
         # Ct = np.array(0.69)
         
-        GPR = joblib.load('/home1/09909/smata/dir_scratch/induction_modeling/gaussian_process/10MW/results/rotor/wrf_10MW_OH_rot_GPR.pkl')
+        GPR = joblib.load('/home1/09909/smata/dir_scratch/induction_modeling/gaussian_process/10MW/results/rotor/opr_kernel.pkl')
 
         with open('/home1/09909/smata/dir_scratch/induction_modeling/gaussian_process/10MW/train_data/scaler_wrf_cot_rot.pkl', 'rb') as f:
             cot_scalar = pickle.load(f)
@@ -652,7 +652,7 @@ class GP_Annulus(MomentumModel):
         # print(Ct)
 
         # GPR = joblib.load('/home1/09909/smata/dir_scratch/induction_modeling/gaussian_process/10MW/results/annulus/wrf_10MW_ann_GPR_bk.pkl')
-        GPR = joblib.load('/home1/09909/smata/dir_scratch/induction_modeling/gaussian_process/10MW/results/annulus/wrf_10MW_OH_ann_GPR.pkl')
+        GPR = joblib.load('/home1/09909/smata/dir_scratch/induction_modeling/gaussian_process/10MW/results/annulus/opr_kernel.pkl')
 
         with open('/home1/09909/smata/dir_scratch/induction_modeling/gaussian_process/10MW/train_data/scaler_wrf_cot_ann.pkl', 'rb') as f:
             cot_scalar = pickle.load(f)
