@@ -30,11 +30,8 @@ __all__ = [
     "GP_Annulus"
 ]
 
-class MomentumModel(ABC):
-    @abstractmethod
-    def compute_induction(self, Cx: ArrayLike, yaw: float) -> ArrayLike:
-        ...
 
+class MomentumModel(ABC):
     @abstractmethod
     def __call__(
         self,
@@ -44,10 +41,36 @@ class MomentumModel(ABC):
         yaw: float,
         rotor: "RotorDefinition",
         geom: "BEMGeometry",
-        a: float,
     ) -> ArrayLike:
         ...
 
+    @abstractmethod
+    def compute_induction(self, Cx: ArrayLike, yaw: float) -> ArrayLike:
+        ...
+
+    @abstractmethod
+    def compute_initial_wake_velocities(self, Ct: float, yaw: float) -> ArrayLike:
+        ...
+
+
+    # def _func_rotor(self, aero_props, pitch, tsr, yaw, rotor, geom) -> ArrayLike:
+    #     # Use ratio-of-averages for tip-loss corrected thrust when averaging over rotor
+    #     # Ct_eff = <Cx>/<F> rather than <Cx/F>, which would overweight low-F regions
+    #     Cx = np.clip(aero_props.C_x, 0, 1.69)
+    #     F = aero_props.F
+    #     Cx_avg = geom.rotor_average(geom.annulus_average(Cx))
+    #     F_avg = geom.rotor_average(geom.annulus_average(F))
+    #     rotor_avg_axial_force = Cx_avg / np.maximum(F_avg, 1e-8)
+    #     return self.compute_induction(rotor_avg_axial_force, yaw)
+
+    # def _func_annulus(self, aero_props, pitch, tsr, yaw, rotor, geom) -> ArrayLike:
+    #     # Annulus-averaged corrected CT = <Cx>_θ / <F>_θ for each ring
+    #     Ct_ann = geom.annulus_average(np.clip(aero_props.C_x, 0, 1.69))
+    #     F_ann  = geom.annulus_average(np.clip(aero_props.F,  1e-6, 1.0))
+    #     Ct_corr_ann = np.clip(Ct_ann / F_ann, 0.0, 1.69)
+    #     return self.compute_induction(Ct_corr_ann[:, None] * np.ones(geom.shape), yaw)
+
+    
     def _func_rotor(
         self,
         aero_props: "AerodynamicProperties",
@@ -66,7 +89,8 @@ class MomentumModel(ABC):
                     )
         )
 
-        return self.compute_induction(aero_props, geom)
+        return self.compute_induction(rotor_avg_axial_force, yaw)
+
 
 
     def _func_annulus(
@@ -82,12 +106,12 @@ class MomentumModel(ABC):
         annulus_avg_axial_force = (
             
                 geom.annulus_average(
-                    aero_props.C_x_corr
+                    np.clip(aero_props.C_x_corr, 0, 1.69)
                     )
                     )[:, None] * np.ones(geom.shape)
         
 
-        return self.compute_induction(aero_props, geom)
+        return self.compute_induction(annulus_avg_axial_force, yaw)
 
     def _func_sector(
         self,
@@ -98,21 +122,9 @@ class MomentumModel(ABC):
         rotor: "RotorDefinition",
         geom: "BEMGeometry",
     ) -> ArrayLike:
-        axial_force = aero_props.C_x_corr
+        axial_force = np.clip(aero_props.C_x_corr, 0, 1.69)
 
-        return self.compute_induction(geom)
-
-    def _func_NN_sector(
-        self,
-        aero_props: "AerodynamicProperties",
-        pitch: float,
-        tsr: float,
-        yaw: float,
-        rotor: "RotorDefinition",
-        geom: "BEMGeometry",
-    ) -> ArrayLike:
-
-        return self.compute_induction(aero_props, geom, pitch, tsr, yaw)
+        return self.compute_induction(axial_force, yaw)
 
     def __call__(
         self,
@@ -122,7 +134,6 @@ class MomentumModel(ABC):
         yaw: float,
         rotor: "RotorDefinition",
         geom: "BEMGeometry",
-        a: float,
     ) -> ArrayLike:
         an = self._func(aero_props, pitch, tsr, yaw, rotor, geom)
         return np.clip(an, 0, 1)
@@ -153,16 +164,21 @@ class ClassicalMomentum(MomentumModel):
             raise ValueError(f"Averaging method {averaging} not found for ClassicalMomentum model.")
         self.averaging = averaging
 
-    def compute_induction(self, aero_props, geom):
-        # return 0.5 * (1 - np.sqrt(1 - aero_props.C_x))
-        Ct = geom.rotor_average(geom.annulus_average(np.clip(aero_props.C_x, 0.0, 1.69)))
-        return 0.5 * (1 - np.sqrt(1 - Ct))
+    def compute_induction(self, Cx, yaw):
+        return 0.5 * (1 - np.sqrt(1 - Cx))
+    
+    def compute_initial_wake_velocities(self, Ct: float, yaw: float) -> ArrayLike:
+        u4 = np.sqrt(1 - Ct)
+        v4 = - (1/4) * Ct * np.sin(yaw)
+        return u4, v4
     
 
 class HeckMomentum(MomentumModel):
     """
     Heck Momentum model based on 2023 paper:
-    https://doi.org/10.1017/jfm.2023.129 
+    https://doi.org/10.1017/jfm.2023.129
+
+    Note that this version takes in CT and has a high thrust correction when calculating induction.
     """
     def __init__(
         self, averaging: Literal["sector", "annulus", "rotor"] = "rotor", ac: float = 1 / 3, v4_correction: float = 1.0
@@ -189,18 +205,31 @@ class HeckMomentum(MomentumModel):
             -4 + np.sqrt(-(Cx**2) * np.sin(yaw) ** 2 - 16 * Cx + 16)
         )
 
+        mask = Cx > Ctc
         if np.iterable(Cx):
-            mask = Cx > Ctc
             if np.any(mask):
                 a[mask] = (Cx[mask] - Ctc) / slope + self.ac
+        elif isinstance(Cx, (int, float)):
+            if mask:
+                a = (Cx - Ctc) / slope + self.ac
+        else:
+            raise ValueError(f"Unsupported type of Cx ({Cx}) - not iterable and not a float - so high thrust correction in Heck can't be applied.")
 
         return a
+    
+    def compute_initial_wake_velocities(self, Ct: float, yaw: float) -> ArrayLike:
+        a = self.compute_induction(Ct, yaw)
+        u4 = 1 - Ct /(2  * (1 - a))
+        v4 = - (1/4) * Ct * np.sin(yaw)
+        return u4, v4
 
 
 class UnifiedMomentum(MomentumModel):
     """
     Unified Momentum Model based on 2024 paper:
     https://www.nature.com/articles/s41467-024-50756-5 
+
+    Note that this version takes in CT and thus uses the thrust based unified momentum model.
     """
     def __init__(self, averaging: Literal["sector", "annulus", "rotor"] = "rotor", beta=0.1403):
         self.beta = beta
@@ -220,7 +249,10 @@ class UnifiedMomentum(MomentumModel):
     def compute_induction(self, Cx: ArrayLike, yaw: float) -> ArrayLike:
         sol = self.model_Ct(Cx, yaw)
         return sol.an
-
+    
+    def compute_initial_wake_velocities(self, Ct: float, yaw: float) -> ArrayLike:
+        sol = self.model_Ct(Ct, yaw)
+        return sol.u4, sol.v4
 
 class MadsenMomentum(MomentumModel):
     """
@@ -242,16 +274,22 @@ class MadsenMomentum(MomentumModel):
         self.cosine_exponent = cosine_exponent
 
 
-    def compute_induction(self, aero_props, geom) -> ArrayLike:
-        # if self.cosine_exponent:
-        #     Ct = aero_props.C_x / (np.cos(yaw)**2)
-        # else:
-        Ct = aero_props.C_x
-
-        Ct = geom.rotor_average(geom.annulus_average(np.clip(Ct, 0.0, 1.69)))
+    def compute_induction(self, Cx: ArrayLike, yaw: float) -> ArrayLike:
+        if self.cosine_exponent:
+            Ct = Cx / (np.cos(yaw)**2)
+        else:
+            Ct = Cx
 
         an = Ct**3 * 0.0883 + Ct**2 * 0.0586 + Ct * 0.2460
         return an
+    
+    def compute_initial_wake_velocities(self, Ct: float, yaw: float) -> ArrayLike:
+        u4 = np.sqrt(1 - Ct)
+        v4 = - (1/4) * Ct * np.sin(yaw)
+        # u4 = np.zeros_like(Ct)
+        # v4 = np.zeros_like(Ct)
+        return u4, v4
+
 
 class Madsen_Rotor_Momentum_PosV_NoS(MomentumModel):
     def __init__(self, veer):

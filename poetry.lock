@@ -2998,7 +2998,7 @@ files = [
 
 [[package]]
 name = "unified-momentum-model"
-version = "0.3.0"
+version = "0.4.0"
 description = ""
 optional = false
 python-versions = "^3.8"

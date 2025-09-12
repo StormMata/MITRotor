@@ -9,6 +9,8 @@ class BEMGeometry:
     def __init__(self, Nr, Ntheta, R, Rhub):
         self.Nr = Nr
         self.Ntheta = Ntheta
+        self.Radius = R
+        self.Hub_radius = Rhub
 
         # This replaces the old method for computing mu consistent with WRF-LES for induction modeling study
         dr = (R - Rhub) / Nr
@@ -62,7 +64,7 @@ class BEMGeometry:
         area_elements = 2 * np.pi * r * dr  # differential area for annular rings
         integrand = X * area_elements
 
-        A = np.pi * (1 - r[0]**2)  # total area of annulus from R1 to R2
+        A = np.pi * (1 - (self.Hub_radius/self.Radius)**2)
 
         X_rotor =  np.sum(integrand) / A
 

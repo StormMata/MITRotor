@@ -169,10 +169,12 @@ class RotorDefinition:
         chord_at_airfoil_grid = chord_func_old(airfoil_grid_adjusted)
         chord_func = interpolate.interp1d(airfoil_grid_adjusted, chord_at_airfoil_grid, kind='linear', fill_value="extrapolate")
 
-        solidity_func = lambda mu: np.minimum(
-            N_blades * chord_func(mu) / (2 * np.pi * np.maximum(mu, 0.0001) * R),
-            1,
-        )
+        # solidity_func = lambda mu: np.minimum(
+        #     N_blades * chord_func(mu) / (2 * np.pi * np.maximum(mu, 0.0001) * R),
+        #     1,
+        # )
+
+        solidity_func = interpolate.interp1d(airfoil_grid_adjusted, 3 * chord_func(airfoil_grid_adjusted) / (2 * np.pi * R * airfoil_grid_adjusted), kind='linear', fill_value="extrapolate")
 
         airfoil_func = BladeAirfoils.from_windio(windio, hub_radius, R)
 
