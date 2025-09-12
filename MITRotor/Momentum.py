@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 __all__ = [
     "MomentumModel",
     "ConstantInduction",
+    "ConstantInduction_GP",
     "ClassicalMomentum",
     "HeckMomentum",
     "UnifiedMomentum",
@@ -139,17 +140,62 @@ class MomentumModel(ABC):
         return np.clip(an, 0, 1)
 
 class ConstantInduction(MomentumModel):
-    def __init__(self, a):
+    def __init__(self, a = 0):
         self.a = a
         self._func = self._func_sector
 
-    def compute_induction(
-        self,
-        geom: "BEMGeometry",
-    ) -> ArrayLike:
-        # Ct = aero_props.solidity * aero_props.W**2 * aero_props.C_x
+    def compute_induction(self, Cx, yaw) -> ArrayLike:
+        return self.a * np.ones_like(yaw)
+    
+    def compute_initial_wake_velocities(self, Ct: float, yaw: float) -> ArrayLike:
+        u4 = 1 - 2 * self.a
+        v4 = - (1/4) * Ct * np.sin(yaw)
+        return u4, v4
 
-        return self.a * np.ones_like(geom.mu_mesh)
+class ConstantInduction_GP(MomentumModel):
+    def __init__(self, veer, a = 0):
+        self.a = a
+        self._func = self._func_rotor
+        self.veer  = np.array(veer)
+        self.shear = np.array(0.0)
+
+    def compute_induction(self, Cx, yaw) -> ArrayLike:
+
+        GPR = joblib.load('/home1/09909/smata/dir_scratch/induction_modeling/gaussian_process/10MW/results/rotor/opr_kernel.pkl')
+
+        with open('/home1/09909/smata/dir_scratch/induction_modeling/gaussian_process/10MW/train_data/scaler_wrf_cot_rot.pkl', 'rb') as f:
+            cot_scalar = pickle.load(f)
+
+        with open('/home1/09909/smata/dir_scratch/induction_modeling/gaussian_process/10MW/train_data/scaler_shears_rot.pkl', 'rb') as f:
+            shear_scalar = pickle.load(f)
+
+        with open('/home1/09909/smata/dir_scratch/induction_modeling/gaussian_process/10MW/train_data/scaler_veers_rot.pkl', 'rb') as f:
+            veer_scalar = pickle.load(f)
+
+        with open('/home1/09909/smata/dir_scratch/induction_modeling/gaussian_process/10MW//train_data/scaler_wrf_ind_rot.pkl', 'rb') as f:
+            ind_scalar = pickle.load(f)
+
+        with open('/home1/09909/smata/dir_scratch/induction_modeling/gaussian_process/10MW//train_data/encoder_rot.pkl', 'rb') as f:
+            encoder_rot = pickle.load(f)
+
+        # Ct = geom.rotor_average(geom.annulus_average(Cx))
+
+        cot_trans   = cot_scalar.transform((Cx).reshape(-1, 1)).ravel()
+        shear_trans = shear_scalar.transform(self.shear.reshape(-1, 1)).ravel()
+        veer_trans  = veer_scalar.transform(self.veer.reshape(-1, 1)).ravel()
+
+        X_input = np.column_stack([cot_trans, shear_trans, veer_trans])
+        X_input = np.hstack([X_input, encoder_rot.transform(np.array([1]).reshape(-1, 1)) ])
+        A_pred, std = GPR.predict(X_input, return_std=True)
+
+        a = ind_scalar.inverse_transform(A_pred.reshape(-1, 1)).ravel() 
+
+        return a * np.ones_like(yaw)
+
+    def compute_initial_wake_velocities(self, Ct: float, yaw: float) -> ArrayLike:
+        u4 = 1 - 2 * self.a
+        v4 = - (1/4) * Ct * np.sin(yaw)
+        return u4, v4
 
 
 class ClassicalMomentum(MomentumModel):
