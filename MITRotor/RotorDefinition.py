@@ -169,12 +169,12 @@ class RotorDefinition:
         chord_at_airfoil_grid = chord_func_old(airfoil_grid_adjusted)
         chord_func = interpolate.interp1d(airfoil_grid_adjusted, chord_at_airfoil_grid, kind='linear', fill_value="extrapolate")
 
-        # solidity_func = lambda mu: np.minimum(
-        #     N_blades * chord_func(mu) / (2 * np.pi * np.maximum(mu, 0.0001) * R),
-        #     1,
-        # )
+        solidity_func = lambda mu: np.minimum(
+            N_blades * chord_func(mu) / (2 * np.pi * np.maximum(mu, 0.0001) * R),
+            1,
+        )
 
-        solidity_func = interpolate.interp1d(airfoil_grid_adjusted, 3 * chord_func(airfoil_grid_adjusted) / (2 * np.pi * R * airfoil_grid_adjusted), kind='linear', fill_value="extrapolate")
+        # solidity_func = interpolate.interp1d(airfoil_grid_adjusted, 3 * chord_func(airfoil_grid_adjusted) / (2 * np.pi * R * airfoil_grid_adjusted), kind='linear', fill_value="extrapolate")
 
         airfoil_func = BladeAirfoils.from_windio(windio, hub_radius, R)
 
@@ -233,6 +233,14 @@ class RotorDefinition:
         return self.twist_func(mu)
 
     def solidity(self, mu):
+
+    # array([0.55241568, 0.32186664, 0.23356577, 0.18690152, 0.15804291,
+    #     0.13843163, 0.12139203, 0.10591681, 0.09033055, 0.07778802,
+    #     0.06747697, 0.05885052, 0.05152702, 0.04523199, 0.039763  ,
+    #     0.03484034, 0.03042427, 0.02649237, 0.02329007, 0.0204202 ,
+    #     0.01782052, 0.01530216, 0.01299281, 0.01087398, 0.00892304,
+    #     0.00712078, 0.00545085, 0.00389917, 0.00245363, 0.00110369])
+
         return self.solidity_func(mu)
 
     def clcd(self, mu, aoa):
