@@ -277,7 +277,7 @@ class BEM:
         a_init: Optional[ArrayLike] = None,  # <--- NEW
         veer: Optional[ArrayLike] = None  # <--- NEW
     ) -> Tuple[ArrayLike, ...]:
-        a = a_init if a_init is not None else 0.35 * np.ones(self.geometry.shape)
+        a = a_init if a_init is not None else 0.33742325 * np.ones(self.geometry.shape)
         aprime = np.zeros(self.geometry.shape)
         return a, aprime
 
