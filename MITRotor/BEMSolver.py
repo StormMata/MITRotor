@@ -227,8 +227,8 @@ class BEMSolution:
         Ctprime = self.Ct(grid="sector") / ((1 - self.a(grid="sector")) ** 2 * np.cos(self.yaw) ** 2)
         return average(self.geom, Ctprime, grid=grid)
             
-# @adaptivefixedpointiteration(max_iter=500, tolerance=1e-4, relaxations=[0.0])
-@adaptivefixedpointiteration(max_iter=100, tolerance=1e-4, relaxations=[0.2, 0.5, 0.95])
+# @adaptivefixedpointiteration(max_iter=500, tolerance=1e-2, relaxations=[0.0])
+@adaptivefixedpointiteration(max_iter=100, tolerance=1e-4, relaxations=[0.95])
 
 class BEM:
     """
@@ -277,7 +277,7 @@ class BEM:
         a_init: Optional[ArrayLike] = None,  # <--- NEW
         veer: Optional[ArrayLike] = None  # <--- NEW
     ) -> Tuple[ArrayLike, ...]:
-        a = a_init if a_init is not None else 0.33742325 * np.ones(self.geometry.shape)
+        a = a_init if a_init is not None else 0.336 * np.ones(self.geometry.shape)
         aprime = np.zeros(self.geometry.shape)
         return a, aprime
 

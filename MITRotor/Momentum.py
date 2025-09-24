@@ -161,7 +161,7 @@ class ConstantInduction_GP(MomentumModel):
 
     def compute_induction(self, Cx, yaw) -> ArrayLike:
 
-        GPR = joblib.load('/home1/09909/smata/dir_scratch/induction_modeling/gaussian_process/10MW/results/rotor/rotor_sklearn_gpr.pkl')
+        GPR = joblib.load('/scratch/09909/smata/induction_modeling/gaussian_process/10MW/results/rotor/opr_kernel.pkl')
 
         with open('/home1/09909/smata/dir_scratch/induction_modeling/gaussian_process/10MW/train_data/scaler_wrf_cot_rot.pkl', 'rb') as f:
             cot_scalar = pickle.load(f)
@@ -187,10 +187,12 @@ class ConstantInduction_GP(MomentumModel):
         veer_trans  = veer_scalar.transform(self.veer.reshape(-1, 1)).ravel()
 
         X_input = np.column_stack([cot_trans, shear_trans, veer_trans])
-        # X_input = np.hstack([X_input, encoder_rot.transform(np.array([1]).reshape(-1, 1)) ])
+        X_input = np.hstack([X_input, encoder_rot.transform(np.array([[1.]]).reshape(-1, 1)) ])
         A_pred, std = GPR.predict(X_input, return_std=True)
 
         a = ind_scalar.inverse_transform(A_pred.reshape(-1, 1)).ravel() 
+
+        print(X_input)
 
         print(a)
 
