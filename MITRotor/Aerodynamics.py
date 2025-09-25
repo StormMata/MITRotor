@@ -336,8 +336,15 @@ class WRFLESAerodynamics(AerodynamicModel):
 
         """
 
-        u_fst = (U * (1 - an) * np.cos(wdir))
-        v_fst = (U * (1 - an) * np.sin(wdir))
+        # u_fst = (U * (1 - an) * np.cos(wdir))
+        # v_fst = (U * (1 - an) * np.sin(wdir))
+
+        u_inf = U * np.cos(wdir)
+        v_inf = U * np.sin(wdir)
+
+        u_fst = ((((1-an) * u_inf)**2 + v_inf**2)**(1/2) * np.cos(np.atan2(v_inf, u_inf)))
+        v_fst = ((((1-an) * u_inf)**2 + v_inf**2)**(1/2) * np.sin(np.atan2(v_inf, u_inf)))
+
         w_fst = np.zeros_like(u_fst)
 
         Vax, Vtn_NR, _ = WRFLESAerodynamics.rotGlobalToLocal(geom.Nr,geom.Ntheta,u_fst,v_fst,w_fst)

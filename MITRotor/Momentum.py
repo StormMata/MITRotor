@@ -19,6 +19,7 @@ __all__ = [
     "MomentumModel",
     "ConstantInduction",
     "ConstantInduction_GP",
+    "ConstantInduction_GP_CTprime",
     "ClassicalMomentum",
     "HeckMomentum",
     "UnifiedMomentum",
@@ -92,6 +93,25 @@ class MomentumModel(ABC):
 
         return self.compute_induction(rotor_avg_axial_force, yaw)
 
+    def _func_rotor_CTprime(
+        self,
+        aero_props: "AerodynamicProperties",
+        pitch: float,
+        tsr: float,
+        yaw: float,
+        rotor: "RotorDefinition",
+        geom: "BEMGeometry",
+    ) -> ArrayLike:
+        
+        rotor_avg_axial_force = (
+            geom.rotor_average(
+                geom.annulus_average(
+                    np.clip(aero_props.C_x_corr, 0, 1.69)
+                    )
+                    )
+        )
+
+        return self.compute_induction(rotor_avg_axial_force, aero_props.an, geom)
 
 
     def _func_annulus(
@@ -180,23 +200,74 @@ class ConstantInduction_GP(MomentumModel):
 
         # Ct = geom.rotor_average(geom.annulus_average(Cx))
 
-        print(self.veer)
+        # print(Cx)
+
+        # print(self.veer)
 
         cot_trans   = cot_scalar.transform((Cx).reshape(-1, 1)).ravel()
         shear_trans = shear_scalar.transform(self.shear.reshape(-1, 1)).ravel()
         veer_trans  = veer_scalar.transform(self.veer.reshape(-1, 1)).ravel()
 
         X_input = np.column_stack([cot_trans, shear_trans, veer_trans])
-        X_input = np.hstack([X_input, encoder_rot.transform(np.array([[1.]]).reshape(-1, 1)) ])
+        # X_input = np.hstack([X_input, encoder_rot.transform(np.array([[1.]]).reshape(-1, 1)) ])
         A_pred, std = GPR.predict(X_input, return_std=True)
 
         a = ind_scalar.inverse_transform(A_pred.reshape(-1, 1)).ravel() 
 
-        print(X_input)
+        print([Cx,a])
+        # print(X_input)
 
-        print(a)
+        # print(a)
 
         return a * np.ones_like(yaw)
+
+    def compute_initial_wake_velocities(self, Ct: float, yaw: float) -> ArrayLike:
+        u4 = 1 - 2 * self.a
+        v4 = - (1/4) * Ct * np.sin(yaw)
+        return u4, v4
+
+
+class ConstantInduction_GP_CTprime(MomentumModel):
+    def __init__(self, veer, a = 0):
+        self.a = a
+        self._func = self._func_rotor_CTprime
+        self.veer  = np.array(veer)
+        self.shear = np.array(0.0)
+
+    def compute_induction(self, Cx, an, geom) -> ArrayLike:
+
+        GPR = joblib.load('/scratch/09909/smata/induction_modeling/gaussian_process/10MW/results/rotor/opr_kernel.pkl')
+
+        with open('/home1/09909/smata/dir_scratch/induction_modeling/gaussian_process/10MW/train_data/scaler_wrf_cotp_rot.pkl', 'rb') as f:
+            cotp_scalar = pickle.load(f)
+
+        with open('/home1/09909/smata/dir_scratch/induction_modeling/gaussian_process/10MW/train_data/scaler_shears_rot.pkl', 'rb') as f:
+            shear_scalar = pickle.load(f)
+
+        with open('/home1/09909/smata/dir_scratch/induction_modeling/gaussian_process/10MW/train_data/scaler_veers_rot.pkl', 'rb') as f:
+            veer_scalar = pickle.load(f)
+
+        with open('/home1/09909/smata/dir_scratch/induction_modeling/gaussian_process/10MW/train_data/scaler_wrf_ind_rot.pkl', 'rb') as f:
+            ind_scalar = pickle.load(f)
+
+        a_bar = geom.rotor_average(geom.annulus_average(an))
+
+        Ct_prime_bar = Cx / (1 - a_bar)**2
+
+        print(a_bar)
+        print(Cx)
+
+        cotp_trans  = cotp_scalar.transform(Ct_prime_bar.reshape(-1, 1)).ravel()
+        shear_trans = shear_scalar.transform(self.shear.reshape(-1, 1)).ravel()
+        veer_trans  = veer_scalar.transform(self.veer.reshape(-1, 1)).ravel()
+
+        X_input     = np.column_stack([cotp_trans, shear_trans, veer_trans])
+
+        A_pred      = GPR.predict(X_input, return_std=False)
+
+        a           = ind_scalar.inverse_transform(A_pred.reshape(-1, 1)).ravel() 
+
+        return a * np.ones_like(Cx)
 
     def compute_initial_wake_velocities(self, Ct: float, yaw: float) -> ArrayLike:
         u4 = 1 - 2 * self.a
