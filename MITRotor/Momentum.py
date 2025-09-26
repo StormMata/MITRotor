@@ -254,8 +254,8 @@ class ConstantInduction_GP_CTprime(MomentumModel):
 
         Ct_prime_bar = Cx / (1 - a_bar)**2
 
-        print(a_bar)
-        print(Cx)
+        # print(a_bar)
+        # print(Cx)
 
         cotp_trans  = cotp_scalar.transform(Ct_prime_bar.reshape(-1, 1)).ravel()
         shear_trans = shear_scalar.transform(self.shear.reshape(-1, 1)).ravel()
