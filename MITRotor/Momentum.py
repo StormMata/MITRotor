@@ -254,7 +254,7 @@ class ConstantInduction_GP_CTprime(MomentumModel):
 
         Ct_prime_bar = Cx / (1 - a_bar)**2
 
-        # print(a_bar)
+        print([a_bar,Cx])
         # print(Cx)
 
         cotp_trans  = cotp_scalar.transform(Ct_prime_bar.reshape(-1, 1)).ravel()
@@ -266,6 +266,8 @@ class ConstantInduction_GP_CTprime(MomentumModel):
         A_pred      = GPR.predict(X_input, return_std=False)
 
         a           = ind_scalar.inverse_transform(A_pred.reshape(-1, 1)).ravel() 
+
+        # print(a)
 
         return a * np.ones_like(Cx)
 
