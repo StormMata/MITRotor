@@ -9,6 +9,7 @@ import pickle
 import os
 import pandas as pd
 from UnifiedMomentumModel import Momentum as UMM
+from scipy.special import erf
 
 if TYPE_CHECKING:
     from .Geometry import BEMGeometry
@@ -30,6 +31,11 @@ __all__ = [
     "Madsen_10MWRotor_Momentum",
     "GP_Rotor",
     "GP_Annulus"
+    "physics_model",
+    "pysr_leq30",
+    "pysr_leq60",
+    "data_driven_model",
+    "variable_exponential"
 ]
 
 
@@ -868,3 +874,209 @@ class GP_Annulus(MomentumModel):
 
         # return np.tile(a[:, np.newaxis], (1, geom.Ntheta))
         return a[:, np.newaxis] * np.ones_like(geom.mu_mesh)
+    
+
+class physics_model(MomentumModel):
+    def __init__(self, veer):
+        self.veer  = veer
+        self._func = self._func_rotor
+        self.shear = 0.0
+
+    def compute_induction(self, Cx, yaw) -> ArrayLike:
+
+        Ct = Cx
+
+        UMM_model = UMM.ThrustBasedUnified()
+
+        a_base = UMM_model(Ct, 0).an
+
+        # c1 = -0.46
+        # c2 = 410
+
+        # delta_an = (c2 * 7**2) / (2 * 99.5**2) * Ct * (1 + c1 * (1 + np.sqrt(1 - Ct))) * self.veer**2
+
+        a,b,c = 0.07472802, -0.878854,   2.6734452
+        delta_an = a * Ct * (1 + b * np.sqrt(1 - Ct)) * erf(c*self.veer)**2
+
+        return a_base + delta_an
+    
+    def compute_initial_wake_velocities(self, Ct: float, yaw: float) -> ArrayLike:
+        sol = self.model_Ct(Ct, yaw)
+        return sol.u4, sol.v4
+    
+class data_driven_model(MomentumModel):
+    def __init__(self, veer):
+        self.veer  = veer
+        self._func = self._func_rotor
+        self.shear = 0.0
+
+    def compute_induction(self, Cx, yaw) -> ArrayLike:
+
+        Ct = Cx
+
+        UMM_model = UMM.ThrustBasedUnified()
+
+        a_base = UMM_model(Ct, 0).an
+
+        c1 = 0.36
+
+        delta_an = c1 * Ct**2.19* self.veer**1.87
+
+        return a_base + delta_an
+    
+    def compute_initial_wake_velocities(self, Ct: float, yaw: float) -> ArrayLike:
+        sol = self.model_Ct(Ct, yaw)
+        return sol.u4, sol.v4
+    
+# class pysr_leq30(MomentumModel):
+#     def __init__(self, veer, averaging: Literal["sector", "annulus", "rotor"] = "rotor"):
+#         self.veer  = float(veer)
+#         self.shear = 0.0
+
+#         if averaging == "rotor":
+#             self._func = self._func_rotor
+#         elif averaging == "annulus":
+#             self._func = self._func_annulus
+#         elif averaging == "sector":
+#             self._func = self._func_sector
+#         else:
+#             raise ValueError(f"Averaging method {averaging} not found for pysr_leq30 model.")
+
+#         self.averaging = averaging
+
+#     def _Ct_rotor_avg(self, aero_props, geom) -> float:
+#         # rotor-avg of annulus-avg of corrected Cx
+#         Ct_rot = geom.rotor_average(
+#             geom.annulus_average(np.clip(aero_props.C_x_corr, 0.0, 1.69))
+#         )
+#         return float(Ct_rot)
+
+#     # --- override closure functions so UMM sees global Ct ---
+#     def _func_rotor(self, aero_props, pitch, tsr, yaw, rotor, geom) -> ArrayLike:
+#         Ct_g = self._Ct_rotor_avg(aero_props, geom)
+#         a_base = UMM.ThrustBasedUnified()(Ct_g, 0.0).an
+#         return a_base + self._delta_an(Ct_g)
+
+#     def _func_annulus(self, aero_props, pitch, tsr, yaw, rotor, geom) -> ArrayLike:
+#         Ct_g = self._Ct_rotor_avg(aero_props, geom)
+#         a_base = UMM.ThrustBasedUnified()(Ct_g, 0.0).an  # scalar base
+
+#         Ct_ann = geom.annulus_average(np.clip(aero_props.C_x_corr, 0.0, 1.69))
+#         Ct_ann_field = Ct_ann[:, None] * np.ones(geom.shape)
+
+#         return a_base + self._delta_an(Ct_ann_field)
+
+#     def _func_sector(self, aero_props, pitch, tsr, yaw, rotor, geom) -> ArrayLike:
+#         Ct_g = self._Ct_rotor_avg(aero_props, geom)
+#         a_base = UMM.ThrustBasedUnified()(Ct_g, 0.0).an  # scalar base
+
+#         Ct_local = np.clip(aero_props.C_x_corr, 0.0, 1.69)
+#         return a_base + self._delta_an(Ct_local)
+
+#     # --- your correction term, written once ---
+#     def _delta_an(self, Ct_local: ArrayLike) -> ArrayLike:
+#         Ct_local = np.asarray(Ct_local)
+#         c1,c2,c3,c4 = -1.2459769910392735, 6.0076827121769245, 0.9340364249826503, -7.77499920297763
+
+#         delta_an = (c1 * Ct_local)/(c2* Ct_local**c3 + c4) * self.veer**2
+
+#         return delta_an
+
+#     def compute_induction(self, Cx, yaw) -> ArrayLike:
+#         # Not used anymore for closure selection (we override _func_*),
+#         # but keep it for compatibility if called directly.
+#         Ct = Cx
+#         Ct_g = float(np.atleast_1d(Ct).mean())
+#         a_base = UMM.ThrustBasedUnified()(Ct_g, 0.0).an
+#         return a_base + self._delta_an(Ct)
+    
+#     def compute_initial_wake_velocities(self, Ct: float, yaw: float) -> ArrayLike:
+#         sol = self.model_Ct(Ct, yaw)
+#         return sol.u4, sol.v4
+    
+class pysr_leq30(MomentumModel):
+    """
+    Unified Momentum Model based on 2024 paper:
+    https://www.nature.com/articles/s41467-024-50756-5 
+
+    Note that this version takes in CT and thus uses the thrust based unified momentum model.
+    """
+    def __init__(self, veer, averaging: Literal["sector", "annulus", "rotor"] = "rotor", beta=0.1403):
+        self.beta = beta
+        self.veer  = float(veer)
+
+        if averaging == "rotor":
+            self._func = self._func_rotor
+        elif averaging == "annulus":
+            self._func = self._func_annulus
+        elif averaging == "sector":
+            self._func = self._func_sector
+        else:
+            raise ValueError(f"Averaging method {averaging} not found for UnifiedMomentum model.")
+        self.averaging = averaging
+
+        self.model_Ct = UMM.ThrustBasedUnified(beta=beta)
+
+    def compute_induction(self, Cx: ArrayLike, yaw: float) -> ArrayLike:
+        sol = self.model_Ct(Cx, yaw)
+
+        c1,c2,c3,c4 = -1.2459769910392735, 6.0076827121769245, 0.9340364249826503, -7.77499920297763
+        delta_an = (c1 * Cx)/(c2* Cx**c3 + c4) * self.veer**2
+
+        return sol.an #+ delta_an
+    
+    def compute_initial_wake_velocities(self, Ct: float, yaw: float) -> ArrayLike:
+        sol = self.model_Ct(Ct, yaw)
+        return sol.u4, sol.v4
+    
+class pysr_leq60(MomentumModel):
+    def __init__(self, veer):
+        self.veer  = veer
+        self._func = self._func_rotor
+        self.shear = 0.0
+
+    def compute_induction(self, Cx, yaw) -> ArrayLike:
+
+        Ct = Cx
+
+        UMM_model = UMM.ThrustBasedUnified()
+
+        a_base = UMM_model(Ct, 0).an
+
+        c1 = 0.021
+        c2 = 2.673
+
+        delta_an = c1 * Ct/np.cos(Ct)**2 * erf(c2 * self.veer)**2
+
+        return a_base + delta_an
+    
+    def compute_initial_wake_velocities(self, Ct: float, yaw: float) -> ArrayLike:
+        sol = self.model_Ct(Ct, yaw)
+        return sol.u4, sol.v4
+    
+class variable_exponential(MomentumModel):
+    def __init__(self, veer):
+        self.veer  = veer
+        self._func = self._func_rotor
+        self.shear = 0.0
+
+    def compute_induction(self, Cx, yaw) -> ArrayLike:
+
+        Ct = Cx
+
+        UMM_model = UMM.ThrustBasedUnified()
+
+        a_base = UMM_model(Ct, 0).an
+
+        c1 = 1/16
+
+        fx = np.exp(Ct**(1/3))
+        gx = 1.74/np.exp(4.5*self.veer)
+
+        delta_an = c1 * Ct**fx * self.veer**gx
+
+        return a_base + delta_an
+    
+    def compute_initial_wake_velocities(self, Ct: float, yaw: float) -> ArrayLike:
+        sol = self.model_Ct(Ct, yaw)
+        return sol.u4, sol.v4

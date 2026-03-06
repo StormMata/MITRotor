@@ -5,6 +5,8 @@ Validation/
 
 .DS_Store
 
+tests/.DS_Store
+
 fig
 fig*
 *.mat
