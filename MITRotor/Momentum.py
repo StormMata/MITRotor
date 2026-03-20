@@ -877,10 +877,20 @@ class GP_Annulus(MomentumModel):
     
 
 class physics_model(MomentumModel):
-    def __init__(self, veer):
-        self.veer  = veer
-        self._func = self._func_rotor
+    def __init__(self, veer, averaging="rotor"):
+        self.veer = veer
         self.shear = 0.0
+
+        if averaging == "rotor":
+            self._func = self._func_rotor
+        elif averaging == "annulus":
+            self._func = self._func_annulus
+        elif averaging == "sector":
+            self._func = self._func_sector
+        else:
+            raise ValueError(f"Averaging method {averaging} not found for physics_model.")
+
+        self.averaging = averaging
 
     def compute_induction(self, Cx, yaw) -> ArrayLike:
 
@@ -890,13 +900,8 @@ class physics_model(MomentumModel):
 
         a_base = UMM_model(Ct, 0).an
 
-        # c1 = -0.46
-        # c2 = 410
-
-        # delta_an = (c2 * 7**2) / (2 * 99.5**2) * Ct * (1 + c1 * (1 + np.sqrt(1 - Ct))) * self.veer**2
-
-        a,b,c = 0.07472802, -0.878854,   2.6734452
-        delta_an = a * Ct * (1 + b * np.sqrt(1 - Ct)) * erf(c*self.veer)**2
+        c1,c2 = -0.47577841, 1.42297514
+        delta_an = c2 * Ct * (1 + c1 * (1 + np.sqrt(1 - Ct))) * (self.veer)**2
 
         return a_base + delta_an
     

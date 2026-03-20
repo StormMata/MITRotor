@@ -17,7 +17,7 @@ class BEMGeometry:
         r_array = Rhub + dr * (np.arange(Nr) + 0.5)
         self.mu = r_array / R
 
-        self.theta = np.linspace(0.0, 2 * np.pi, Ntheta)
+        self.theta = np.linspace(0.0, 2 * np.pi, Ntheta, endpoint=False)
 
         self.theta_mesh, self.mu_mesh = np.meshgrid(self.theta, self.mu)
 
