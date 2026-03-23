@@ -902,7 +902,10 @@ class physics_model(MomentumModel):
         a_base = UMM_model(Ct, self.yaw).an
 
         c1,c2 = -0.47577841, 1.42297514
-        delta_an = c2 * Ct * (1 + c1 * (1 + np.sqrt(1 - Ct))) * (self.veer)**2
+        if Ct > 0:
+            delta_an = c2 * Ct * (1 + c1 * (1 + np.sqrt(1 - Ct))) * (self.veer)**2
+        else:
+            delta_an=0
 
         return a_base + delta_an
     
