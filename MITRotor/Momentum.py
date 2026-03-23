@@ -877,8 +877,9 @@ class GP_Annulus(MomentumModel):
     
 
 class physics_model(MomentumModel):
-    def __init__(self, veer, averaging="rotor"):
+    def __init__(self, veer, yaw, averaging="rotor"):
         self.veer = veer
+        self.yaw = yaw
         self.shear = 0.0
 
         if averaging == "rotor":
@@ -898,7 +899,7 @@ class physics_model(MomentumModel):
 
         UMM_model = UMM.ThrustBasedUnified()
 
-        a_base = UMM_model(Ct, 0).an
+        a_base = UMM_model(Ct, self.yaw).an
 
         c1,c2 = -0.47577841, 1.42297514
         delta_an = c2 * Ct * (1 + c1 * (1 + np.sqrt(1 - Ct))) * (self.veer)**2

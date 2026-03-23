@@ -347,7 +347,7 @@ class WRFLESAerodynamics(AerodynamicModel):
 
         w_fst = np.zeros_like(u_fst)
 
-        Vax, Vtn_NR, _ = WRFLESAerodynamics.rotGlobalToLocal(geom.Nr,geom.Ntheta,u_fst,v_fst,w_fst)
+        Vax, Vtn_NR, _ = WRFLESAerodynamics.rotGlobalToLocal(geom.Nr,geom.Ntheta,u_fst,v_fst,w_fst, yaw)
 
         Vtan = (1 + aprime) * tsr * geom.mu_mesh - Vtn_NR
 
@@ -375,7 +375,7 @@ class WRFLESAerodynamics(AerodynamicModel):
         return aero_props
 
     @staticmethod
-    def rotGlobalToLocal(Nelm,Nsct,u_rotor,v_rotor,w_rotor):
+    def rotGlobalToLocal(Nelm,Nsct,u_rotor,v_rotor,w_rotor, yaw):
         """
         Replicates the matrix equations implemented in WRF-LES
 
@@ -386,9 +386,9 @@ class WRFLESAerodynamics(AerodynamicModel):
             Axial, tangential (wihtout rotation), and radial velocity components pointwise over the rotor
 
         """
-        precone = 0
+        precone = 0    
         tilt    = 0
-        trbYaw  = 0
+        trbYaw  = yaw
 
         psi = 0.0
         angle = 2 * np.pi / Nsct
