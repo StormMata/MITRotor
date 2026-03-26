@@ -20,6 +20,7 @@ class TipLossModel(ABC):
         yaw: float,
         rotor: "RotorDefinition",
         geometry: "BEMGeometry",
+        tilt: float = 0.0,
     ) -> ArrayLike:
         ...
 
@@ -33,14 +34,14 @@ class NoTipLoss(TipLossModel):
         yaw: float,
         rotor: "RotorDefinition",
         geometry: "BEMGeometry",
+        tilt: float = 0.0,
     ):
         return np.ones_like(geometry.mu_mesh)
 
 
 class PrandtlTipLoss(TipLossModel):
-    def __init__(self, root_loss: bool = True, min_val: float = 0.00001):
+    def __init__(self, root_loss: bool = True):
         self.root_loss = root_loss
-        self.min_val = min_val
 
     def __call__(
         self,
@@ -50,6 +51,7 @@ class PrandtlTipLoss(TipLossModel):
         yaw: float,
         rotor: "RotorDefinition",
         geometry: "BEMGeometry",
+        tilt: float = 0.0,
     ):
         phi = aero_props.phi
         R_hub = rotor.hub_radius / rotor.R
@@ -67,7 +69,8 @@ class PrandtlTipLoss(TipLossModel):
             )
             F_hub = 2 / np.pi * np.arccos(np.clip(np.exp(-np.clip(f_hub, -100, 100)), -0.9999, 0.9999))
 
-            return np.maximum(F_hub * F_tip, self.min_val)
+            return F_hub * F_tip
 
         else:
-            return np.maximum(F_tip, self.min_val)
+            return F_tip
+        

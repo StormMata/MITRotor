@@ -8,6 +8,7 @@ from numpy.typing import ArrayLike
 
 from .RotorDefinition import RotorDefinition
 from .Geometry import BEMGeometry
+from UnifiedMomentumModel.Utilities.Geometry import calc_eff_yaw
 
 __all__ = [
     "AerodynamicModel",
@@ -36,7 +37,7 @@ class AerodynamicProperties:
         aoa (ArrayLike): Blade element angle of attack.
         Cl (ArrayLike): Blade element lift coefficient.
         Cd (ArrayLike): Blade element drag coefficient.
-        F (Optional[ArrayLike]): Blade element tip loss (optional).
+        F (ArrayLike): Blade element tip loss.
 
     Properties:
         W: Blade element inflow magnitude.
@@ -57,8 +58,7 @@ class AerodynamicProperties:
     aoa: ArrayLike
     Cl: ArrayLike
     Cd: ArrayLike
-    # index: int
-    F: Optional[ArrayLike] = None
+    F: ArrayLike = None
 
     def __post_init__(self):
         pass
@@ -121,7 +121,6 @@ class AerodynamicProperties:
 
 
 
-
 class AerodynamicModel(ABC):
     @abstractmethod
     def __call__(
@@ -135,6 +134,7 @@ class AerodynamicModel(ABC):
         geom: BEMGeometry,
         U: ArrayLike,
         wdir: ArrayLike,
+        tilt: float = 0,
     ) -> AerodynamicProperties:
         """
         Performs the aerodynamic calculations in a blade-element code.
@@ -149,6 +149,7 @@ class AerodynamicModel(ABC):
             geom (BEMGeometry): Blade element geometry object.
             U (ArrayLike): Inflow velocity on polar grid.
             wdir (ArrayLike): Inflow direction on polar grid.
+            tilt (float): Rotor tilt angle [rad].
 
         Returns:
             AerodynamicProperties: Calculated aerodynamic properties stored in AerodynamicProperties object.
@@ -169,6 +170,7 @@ class KraghAerodynamics(AerodynamicModel):
         geom: BEMGeometry,
         U: ArrayLike,
         wdir: ArrayLike,
+        tilt: float = 0.0,
     ) -> AerodynamicProperties:
         """
         Performs the aerodynamic calculations in a blade-element code using the
@@ -186,11 +188,14 @@ class KraghAerodynamics(AerodynamicModel):
             geom (BEMGeometry): Blade element geometry object.
             U (ArrayLike): Inflow velocity on polar grid.
             wdir (ArrayLike): Inflow direction on polar grid.
+            tilt (float): Rotor tilt angle [rad].
 
         Returns:
             AerodynamicProperties: Calculated aerodynamic properties stored in AerodynamicProperties object.
 
         """
+        if tilt != 0:
+            raise ValueError("Tilt not supported by the KraghAerodynamics model. Use DefaultAerodynamics.")
         local_yaw = wdir - yaw
 
         Vax = (
@@ -199,7 +204,6 @@ class KraghAerodynamics(AerodynamicModel):
             * np.cos(local_yaw * np.cos(geom.theta_mesh))
             * np.cos(local_yaw * np.sin(geom.theta_mesh))
         )
-
         Vtan = (
             (1 + aprime) * tsr * geom.mu_mesh
             - U * (1 - an)
@@ -226,7 +230,6 @@ class KraghAerodynamics(AerodynamicModel):
             aoa = aoa,
             Cl = Cl,
             Cd = Cd,
-            # index=index,
         )
 
         return aero_props
@@ -244,6 +247,7 @@ class DefaultAerodynamics(AerodynamicModel):
         geom: BEMGeometry,
         U: ArrayLike,
         wdir: ArrayLike,
+        tilt: float = 0.0,
     ) -> AerodynamicProperties:
         """
         Performs the aerodynamic calculations in a blade-element code using the
@@ -265,13 +269,13 @@ class DefaultAerodynamics(AerodynamicModel):
             AerodynamicProperties: Calculated aerodynamic properties stored in AerodynamicProperties object.
 
         """
-        local_yaw = -yaw
-
+        # calculate values in "yaw-only" frame
+        local_yaw = -self.eff_yaw
         Vax = U * ((1 - an) * np.cos(local_yaw))
         Vtan = (
             (1 + aprime) * tsr * geom.mu_mesh
             - U * (1 - an)
-            * np.cos(geom.theta_mesh)
+            * np.cos(self.eff_theta_mesh)
             * np.sin(local_yaw)
         )
 
@@ -311,6 +315,8 @@ class WRFLESAerodynamics(AerodynamicModel):
         geom: BEMGeometry,
         U: ArrayLike,
         wdir: ArrayLike,
+        tilt: float = 0.0,
+        precone: float = 0.0,
     ) -> AerodynamicProperties:
         """
         Performs the aerodynamic calculations in a blade-element code using the
@@ -347,7 +353,7 @@ class WRFLESAerodynamics(AerodynamicModel):
 
         w_fst = np.zeros_like(u_fst)
 
-        Vax, Vtn_NR, _ = WRFLESAerodynamics.rotGlobalToLocal(geom.Nr,geom.Ntheta,u_fst,v_fst,w_fst, yaw)
+        Vax, Vtn_NR, _ = WRFLESAerodynamics.rotGlobalToLocal(geom.Nr,geom.Ntheta,u_fst,v_fst,w_fst, yaw, tilt, precone)
 
         Vtan = (1 + aprime) * tsr * geom.mu_mesh - Vtn_NR
 
@@ -386,9 +392,9 @@ class WRFLESAerodynamics(AerodynamicModel):
             Axial, tangential (wihtout rotation), and radial velocity components pointwise over the rotor
 
         """
-        precone = 0 #-5.5 * np.pi /180  
-        tilt    = 0 #6 * np.pi / 180
-        trbYaw  = 0
+        precone = precone
+        tilt    = tilt
+        trbYaw  = yaw
 
         psi = 0.0
         angle = 2 * np.pi / Nsct
