@@ -166,9 +166,18 @@ class MomentumModel(ABC):
         return np.clip(an, 0, 1)
 
 class ConstantInduction(MomentumModel):
-    def __init__(self, a = 0):
+    def __init__(self, a = 0, averaging: Literal["sector", "annulus", "rotor"] = "rotor"):
         self.a = a
-        self._func = self._func_sector
+
+        if averaging == "rotor":
+            self._func = self._func_rotor
+        elif averaging == "annulus":
+            self._func = self._func_annulus
+        elif averaging == "sector":
+            self._func = self._func_sector
+        else:
+            raise ValueError(f"Averaging method {averaging} not found for ClassicalMomentum model.")
+        self.averaging = averaging
 
     def compute_induction(self, Cx, yaw) -> ArrayLike:
         return self.a * np.ones_like(yaw)
@@ -874,13 +883,13 @@ class GP_Annulus(MomentumModel):
 
         # return np.tile(a[:, np.newaxis], (1, geom.Ntheta))
         return a[:, np.newaxis] * np.ones_like(geom.mu_mesh)
-    
+
 
 class physics_model(MomentumModel):
-    def __init__(self, veer, yaw, averaging="rotor"):
+    def __init__(self, yaw, veer, averaging: Literal["sector", "annulus", "rotor"] = "rotor", beta=0.1403):
+        self.beta = beta
         self.veer = veer
-        self.yaw = yaw
-        self.shear = 0.0
+        self.averaging = averaging
 
         if averaging == "rotor":
             self._func = self._func_rotor
@@ -889,23 +898,25 @@ class physics_model(MomentumModel):
         elif averaging == "sector":
             self._func = self._func_sector
         else:
-            raise ValueError(f"Averaging method {averaging} not found for physics_model.")
-
+            raise ValueError(f"Averaging method {averaging} not found for UnifiedMomentum model.")
         self.averaging = averaging
 
-    def compute_induction(self, Cx, yaw) -> ArrayLike:
+        self.model_Ct = UMM.ThrustBasedUnified(beta=beta)
 
-        Ct = Cx
+    def compute_induction(self, Cx: ArrayLike, yaw: float) -> ArrayLike:
 
-        UMM_model = UMM.ThrustBasedUnified()
-
-        a_base = UMM_model(Ct, self.yaw).an
+        a_base = self.model_Ct(Cx, yaw).an
 
         c1,c2 = -0.47577841, 1.42297514
-        if Ct > 0:
-            delta_an = c2 * Ct * (1 + c1 * (1 + np.sqrt(1 - Ct))) * (self.veer)**2
+
+        if (self.averaging == 'rotor'):
+            if (Cx < 1):
+                delta_an = c2 * Cx * (1 + c1 * (1 + np.sqrt(1 - Cx))) * (self.veer)**2
+
+            else:
+                delta_an = 0
         else:
-            delta_an=0
+            delta_an = 0
 
         return a_base + delta_an
     

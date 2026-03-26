@@ -127,7 +127,7 @@ class BEMSolution:
     def FL(self, grid: Literal["sector", "annulus", "rotor"] = "sector"):
 
         if not self.v_inf == 1.0:
-            rho = 1.225
+            rho = 1.17
 
             # Dimensional lift forces over rotor
             L = 1/2 * rho * self.rotor.chord_func(self.geom.mu_mesh) * (self.Cl('sector') * (self.W('sector') * self.v_inf)**2)
@@ -140,7 +140,7 @@ class BEMSolution:
     def FD(self, grid: Literal["sector", "annulus", "rotor"] = "sector"):
 
         if not self.v_inf == 1.0:
-            rho = 1.225
+            rho = 1.17
 
             # Dimensional drag forces over rotor
             D = 1/2 * rho * self.rotor.chord_func(self.geom.mu_mesh) * (self.Cd('sector') * (self.W('sector') * self.v_inf)**2)

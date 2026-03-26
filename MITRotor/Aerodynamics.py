@@ -386,9 +386,9 @@ class WRFLESAerodynamics(AerodynamicModel):
             Axial, tangential (wihtout rotation), and radial velocity components pointwise over the rotor
 
         """
-        precone = 0    
-        tilt    = 0
-        trbYaw  = yaw
+        precone = 0 #-5.5 * np.pi /180  
+        tilt    = 0 #6 * np.pi / 180
+        trbYaw  = 0
 
         psi = 0.0
         angle = 2 * np.pi / Nsct
