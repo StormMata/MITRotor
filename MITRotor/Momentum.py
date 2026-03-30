@@ -21,7 +21,8 @@ __all__ = [
     "HeckMomentum",
     "UnifiedMomentum",
     "MadsenMomentum",
-    "physics_model",
+    # "physics_model",
+    "VeerDelta",
 ]
 
 
@@ -266,8 +267,10 @@ class UnifiedMomentum(MomentumModel):
 
     Note that this version takes in CT and thus uses the thrust based unified momentum model.
     """
-    def __init__(self, averaging: Literal["sector", "annulus", "rotor"] = "rotor", beta=0.1403, model_Ct=None):
+    def __init__(self, averaging: Literal["sector", "annulus", "rotor"] = "rotor", beta=0.1403, model_Ct=None, delta_an = False, veer = None):
         self.beta = beta
+        self.veer = veer
+        self.delta_an = delta_an
 
         if averaging == "rotor":
             self._func = self._func_rotor
@@ -286,7 +289,23 @@ class UnifiedMomentum(MomentumModel):
 
     def compute_induction(self, Cx: ArrayLike, yaw: float = 0.0, tilt: float = 0.0) -> ArrayLike:
         sol = self.model_Ct(Cx, yaw = yaw, tilt = tilt)
-        return sol.an
+
+        if self.delta_an:
+            c1,c2 = -0.47577841, 1.42297514
+
+            if (self.averaging == 'rotor'):
+                if (Cx < 1):
+                    delta_an = c2 * Cx * (1 + c1 * (1 + np.sqrt(1 - Cx))) * (self.veer)**2
+
+                else:
+                    delta_an = 0
+            else:
+                delta_an = 0
+
+                return sol.an + delta_an
+            
+        else:
+            return sol.an
     
     def compute_initial_wake_velocities(self, Cx: ArrayLike, yaw: float = 0.0, tilt: float = 0.0) -> ArrayLike:
         sol = self.model_Ct(Cx, yaw = yaw, tilt = tilt)
@@ -397,14 +416,64 @@ class UnifiedMomentumLUT(UnifiedMomentum):
 
     Note: **kwargs can be used to pass arguments to ThrustBasedUnifiedLUT constructor.
     """
-    def __init__(self, averaging = "rotor", **kwargs):
+    def __init__(self, averaging = "rotor", delta_an = False, veer = None, **kwargs):
         super().__init__(
             averaging = averaging,
+            delta_an = delta_an,
+            veer = veer,
             model_Ct = ThrustBasedUnifiedLUT(**kwargs),
         )
 
 
-class physics_model(MomentumModel):
+# class physics_model(MomentumModel):
+#     def __init__(self, veer, averaging: Literal["sector", "annulus", "rotor"] = "rotor", beta=0.1403, model_Ct=None):
+#         self.beta = beta
+#         self.veer = veer
+
+#         if averaging == "rotor":
+#             self._func = self._func_rotor
+#         elif averaging == "annulus":
+#             self._func = self._func_annulus
+#         elif averaging == "sector":
+#             self._func = self._func_sector
+#         else:
+#             raise ValueError(f"Averaging method {averaging} not found for UnifiedMomentum model.")
+#         self.averaging = averaging
+
+#         self.model_Ct = (
+#             model_Ct if model_Ct is not None
+#             else UMM.ThrustBasedUnified(beta=beta)
+#         )
+
+#     def compute_induction(self, Cx: ArrayLike, yaw: float = 0.0, tilt: float = 0.0) -> ArrayLike:
+
+#         a_base = self.model_Ct(Cx, yaw = yaw, tilt = tilt)
+
+#         c1,c2 = -0.47577841, 1.42297514
+
+#         if (self.averaging == 'rotor'):
+#             if (Cx < 1):
+#                 delta_an = c2 * Cx * (1 + c1 * (1 + np.sqrt(1 - Cx))) * (self.veer)**2
+
+#             else:
+#                 delta_an = 0
+#         else:
+#             delta_an = 0
+
+#         return a_base + delta_an
+    
+#     def compute_initial_wake_velocities(self, Cx: ArrayLike, yaw: float = 0.0, tilt: float = 0.0) -> ArrayLike:
+#         sol = self.model_Ct(Cx, yaw = yaw, tilt = tilt)
+#         return sol.u4, sol.v4, sol.w4
+    
+
+class VeerDelta(MomentumModel):
+    """
+    Unified Momentum Model based on 2024 paper:
+    https://www.nature.com/articles/s41467-024-50756-5 
+
+    Note that this version takes in CT and thus uses the thrust based unified momentum model.
+    """
     def __init__(self, veer, averaging: Literal["sector", "annulus", "rotor"] = "rotor", beta=0.1403, model_Ct=None):
         self.beta = beta
         self.veer = veer
@@ -425,8 +494,7 @@ class physics_model(MomentumModel):
         )
 
     def compute_induction(self, Cx: ArrayLike, yaw: float = 0.0, tilt: float = 0.0) -> ArrayLike:
-
-        a_base = self.model_Ct(Cx, yaw = yaw, tilt = tilt)
+        sol = self.model_Ct(Cx, yaw = yaw, tilt = tilt)
 
         c1,c2 = -0.47577841, 1.42297514
 
@@ -439,7 +507,7 @@ class physics_model(MomentumModel):
         else:
             delta_an = 0
 
-        return a_base + delta_an
+        return sol.an + delta_an
     
     def compute_initial_wake_velocities(self, Cx: ArrayLike, yaw: float = 0.0, tilt: float = 0.0) -> ArrayLike:
         sol = self.model_Ct(Cx, yaw = yaw, tilt = tilt)

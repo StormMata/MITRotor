@@ -37,6 +37,7 @@ class BEMSolution:
     pitch: float
     tsr: float
     yaw: float
+    rotor: RotorDefinition = field(repr=False)
     aero_props: AerodynamicProperties = field(repr=False)
     geom: BEMGeometry = field(repr=False)
     converged: bool
@@ -45,7 +46,7 @@ class BEMSolution:
     v4: float
     tilt: float = 0.0
     w4: float = 0
-    v_inf: float
+    v_inf: float = np.nan
 
     def a(self, grid: Literal["sector", "annulus", "rotor"] = "rotor"):
         return average(self.geom, self.aero_props.an, grid)
@@ -274,6 +275,7 @@ class BEM:
         U: ArrayLike = None,
         wdir: ArrayLike = None,
         tilt: ArrayLike = 0.0,
+        v_inf: float = 0.0,
     ) -> Tuple[ArrayLike, ...]:
         an, aprime = x
         U = np.ones(self.geometry.shape) if U is None else U
@@ -308,4 +310,18 @@ class BEM:
         avg_Ct = average(self.geometry, aero_props.C_x)
         u4,v4,w4 = self.momentum_model.compute_initial_wake_velocities(avg_Ct, yaw, tilt = tilt)
 
-        return BEMSolution(pitch, tsr, yaw, v_inf, aero_props, self.geometry, result.converged, result.niter, u4, v4, tilt = tilt, w4 = w4)
+        return BEMSolution(
+            pitch=pitch,
+            tsr=tsr,
+            yaw=yaw,
+            rotor=self.rotor,
+            aero_props=aero_props,
+            geom=self.geometry,
+            converged=result.converged,
+            niter=result.niter,
+            u4=u4,
+            v4=v4,
+            tilt=tilt,
+            w4=w4,
+            v_inf=v_inf,
+        )
