@@ -21,8 +21,7 @@ __all__ = [
     "HeckMomentum",
     "UnifiedMomentum",
     "MadsenMomentum",
-    # "physics_model",
-    "VeerDelta",
+    "BuhlMomentum"
 ]
 
 
@@ -293,16 +292,10 @@ class UnifiedMomentum(MomentumModel):
         if self.delta_an:
             c1,c2 = -0.47577841, 1.42297514
 
-            if (self.averaging == 'rotor'):
-                if (Cx < 1):
-                    delta_an = c2 * Cx * (1 + c1 * (1 + np.sqrt(1 - Cx))) * (self.veer)**2
+            delta_an = c2 * Cx * (1 + c1 * (1 + np.sqrt(1 - np.clip(Cx, 0, 1)))) * (self.veer)**2
 
-                else:
-                    delta_an = 0
-            else:
-                delta_an = 0
 
-                return sol.an + delta_an
+            return sol.an + delta_an
             
         else:
             return sol.an
@@ -424,60 +417,20 @@ class UnifiedMomentumLUT(UnifiedMomentum):
             model_Ct = ThrustBasedUnifiedLUT(**kwargs),
         )
 
-
-# class physics_model(MomentumModel):
-#     def __init__(self, veer, averaging: Literal["sector", "annulus", "rotor"] = "rotor", beta=0.1403, model_Ct=None):
-#         self.beta = beta
-#         self.veer = veer
-
-#         if averaging == "rotor":
-#             self._func = self._func_rotor
-#         elif averaging == "annulus":
-#             self._func = self._func_annulus
-#         elif averaging == "sector":
-#             self._func = self._func_sector
-#         else:
-#             raise ValueError(f"Averaging method {averaging} not found for UnifiedMomentum model.")
-#         self.averaging = averaging
-
-#         self.model_Ct = (
-#             model_Ct if model_Ct is not None
-#             else UMM.ThrustBasedUnified(beta=beta)
-#         )
-
-#     def compute_induction(self, Cx: ArrayLike, yaw: float = 0.0, tilt: float = 0.0) -> ArrayLike:
-
-#         a_base = self.model_Ct(Cx, yaw = yaw, tilt = tilt)
-
-#         c1,c2 = -0.47577841, 1.42297514
-
-#         if (self.averaging == 'rotor'):
-#             if (Cx < 1):
-#                 delta_an = c2 * Cx * (1 + c1 * (1 + np.sqrt(1 - Cx))) * (self.veer)**2
-
-#             else:
-#                 delta_an = 0
-#         else:
-#             delta_an = 0
-
-#         return a_base + delta_an
-    
-#     def compute_initial_wake_velocities(self, Cx: ArrayLike, yaw: float = 0.0, tilt: float = 0.0) -> ArrayLike:
-#         sol = self.model_Ct(Cx, yaw = yaw, tilt = tilt)
-#         return sol.u4, sol.v4, sol.w4
-    
-
-class VeerDelta(MomentumModel):
+class BuhlMomentum(MomentumModel):
     """
-    Unified Momentum Model based on 2024 paper:
-    https://www.nature.com/articles/s41467-024-50756-5 
+    Buhl / Glauert-corrected axial induction model written in the same
+    style as the other MITRotor momentum models.
 
-    Note that this version takes in CT and thus uses the thrust based unified momentum model.
+    This version uses the local blade-element quantities:
+        k = sigma * C_n / (4 F sin(phi)^2)
+
+    and then applies:
+        a = k / (1 + k)                      for k <= 2/3
+        a = Buhl high-thrust correction      for k > 2/3
     """
-    def __init__(self, veer, averaging: Literal["sector", "annulus", "rotor"] = "rotor", beta=0.1403, model_Ct=None):
-        self.beta = beta
-        self.veer = veer
 
+    def __init__(self, averaging: Literal["sector", "annulus", "rotor"] = "rotor"):
         if averaging == "rotor":
             self._func = self._func_rotor
         elif averaging == "annulus":
@@ -485,30 +438,126 @@ class VeerDelta(MomentumModel):
         elif averaging == "sector":
             self._func = self._func_sector
         else:
-            raise ValueError(f"Averaging method {averaging} not found for UnifiedMomentum model.")
+            raise ValueError(f"Averaging method {averaging} not found for BuhlMomentum model.")
         self.averaging = averaging
 
-        self.model_Ct = (
-            model_Ct if model_Ct is not None
-            else UMM.ThrustBasedUnified(beta=beta)
-        )
+    def _compute_k_and_F(
+        self,
+        aero_props: "AerodynamicProperties",
+    ) -> tuple[ArrayLike, ArrayLike]:
+        sinphi2 = np.sin(aero_props.phi) ** 2
 
-    def compute_induction(self, Cx: ArrayLike, yaw: float = 0.0, tilt: float = 0.0) -> ArrayLike:
-        sol = self.model_Ct(Cx, yaw = yaw, tilt = tilt)
+        # Avoid division by zero / singular behavior near phi = 0 and F = 0
+        sinphi2 = np.clip(sinphi2, 1e-8, None)
+        F = np.clip(aero_props.F, 1e-8, None)
 
-        c1,c2 = -0.47577841, 1.42297514
+        k = (aero_props.C_n * aero_props.solidity) / (4.0 * sinphi2 * F)
+        return k, F
 
-        if (self.averaging == 'rotor'):
-            if (Cx < 1):
-                delta_an = c2 * Cx * (1 + c1 * (1 + np.sqrt(1 - Cx))) * (self.veer)**2
+    def _func_rotor(
+        self,
+        aero_props: "AerodynamicProperties",
+        pitch: float,
+        tsr: float,
+        yaw: float,
+        rotor: "RotorDefinition",
+        geom: "BEMGeometry",
+        tilt: float = 0.0,
+    ) -> ArrayLike:
+        if tilt != 0:
+            raise ValueError("Tilt not supported by the BuhlMomentum model.")
 
-            else:
-                delta_an = 0
-        else:
-            delta_an = 0
+        k, F = self._compute_k_and_F(aero_props)
 
-        return sol.an + delta_an
-    
-    def compute_initial_wake_velocities(self, Cx: ArrayLike, yaw: float = 0.0, tilt: float = 0.0) -> ArrayLike:
-        sol = self.model_Ct(Cx, yaw = yaw, tilt = tilt)
-        return sol.u4, sol.v4, sol.w4
+        k_rotor = geom.rotor_average(geom.annulus_average(k))
+        F_rotor = geom.rotor_average(geom.annulus_average(F))
+
+        a_rotor = self.compute_induction(k_rotor, F_rotor)
+
+        return a_rotor * np.ones(geom.shape)
+
+    def _func_annulus(
+        self,
+        aero_props: "AerodynamicProperties",
+        pitch: float,
+        tsr: float,
+        yaw: float,
+        rotor: "RotorDefinition",
+        geom: "BEMGeometry",
+        tilt: float = 0.0,
+    ) -> ArrayLike:
+        if tilt != 0:
+            raise ValueError("Tilt not supported by the BuhlMomentum model.")
+
+        k, F = self._compute_k_and_F(aero_props)
+
+        k_ann = geom.annulus_average(k)[:, None] * np.ones(geom.shape)
+        F_ann = geom.annulus_average(F)[:, None] * np.ones(geom.shape)
+
+        return self.compute_induction(k_ann, F_ann)
+
+    def _func_sector(
+        self,
+        aero_props: "AerodynamicProperties",
+        pitch: float,
+        tsr: float,
+        yaw: float,
+        rotor: "RotorDefinition",
+        geom: "BEMGeometry",
+        tilt: float = 0.0,
+    ) -> ArrayLike:
+        if tilt != 0:
+            raise ValueError("Tilt not supported by the BuhlMomentum model.")
+
+        k, F = self._compute_k_and_F(aero_props)
+        return self.compute_induction(k, F)
+
+    def compute_induction(self, k: ArrayLike, F: ArrayLike, tilt: float = 0.0) -> ArrayLike:
+        k = np.asarray(k, dtype=float)
+        F = np.asarray(F, dtype=float)
+
+        a = k / (1.0 + k)
+
+        mask = k > 2.0 / 3.0
+        if np.any(mask):
+            g1 = 2.0 * F[mask] * k[mask] - (10.0 / 9.0 - F[mask])
+            g2 = 2.0 * F[mask] * k[mask] - (4.0 / 3.0 - F[mask]) * F[mask]
+            g3 = 2.0 * F[mask] * k[mask] - (25.0 / 9.0 - 2.0 * F[mask])
+
+            # Numerical guard
+            g2 = np.maximum(g2, 0.0)
+
+            submask = np.abs(g3) <= 1e-8
+            if np.any(submask):
+                a_hi_a = 1.0 - 1.0 / (2.0 * np.sqrt(np.maximum(g2[submask], 1e-12)))
+                a[mask][submask] = a_hi_a
+
+            if np.any(~submask):
+                a_hi_b = (g1[~submask] - np.sqrt(g2[~submask])) / g3[~submask]
+                a_mask = a[mask]
+                a_mask[~submask] = a_hi_b
+                a[mask] = a_mask
+
+        return a
+
+    def compute_initial_wake_velocities(
+        self,
+        Ct: float,
+        yaw: float = 0.0,
+        tilt: float = 0.0,
+    ) -> ArrayLike:
+        """
+        Buhl here is solved from k and F, not directly from Ct, so there is no
+        exact wake-velocity closure available in this interface.
+
+        Use the classical actuator-disk approximation for post-processing.
+        """
+        if tilt != 0:
+            raise ValueError("Tilt not supported by the BuhlMomentum model.")
+
+        Ct = np.asarray(Ct, dtype=float)
+        a = 0.5 * (1.0 - np.sqrt(np.maximum(1.0 - Ct, 0.0)))
+        u4 = 1.0 - 2.0 * a
+        v4 = -0.25 * Ct * np.sin(yaw)
+        w4 = 0.0
+        return u4, v4, w4

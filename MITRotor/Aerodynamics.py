@@ -381,7 +381,7 @@ class WRFLESAerodynamics(AerodynamicModel):
         return aero_props
 
     @staticmethod
-    def rotGlobalToLocal(Nelm,Nsct,u_rotor,v_rotor,w_rotor, yaw):
+    def rotGlobalToLocal(Nelm,Nsct,u_rotor,v_rotor,w_rotor, yaw, tilt, precone):
         """
         Replicates the matrix equations implemented in WRF-LES
 

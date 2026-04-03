@@ -68,7 +68,7 @@ class SGRE21MWAirfoilEvaluator:
         thickness = np.interp(mu_flat, self.mu_grid, self.thickness_grid)
 
         id1_f = np.interp(mu_flat, self.mu_grid, self.id1_grid.astype(float))
-        id2_f = np.interp(mu_flat, self.mu_grid, self.id2_grid.astype(float))
+        id2_f = np.interp(mu_flat, self.mu_grid, self.id2_grid.astype(float)) 
 
         # MATLAB uses ids that are effectively piecewise-constant; enforce integer ids safely
         id1 = np.clip(np.rint(id1_f).astype(int), 0, self.cl_table.shape[0] - 1)
@@ -182,9 +182,9 @@ def load_sgre_2mw_from_npz(npz_path: str) -> RotorDefinition:
 
     return RotorDefinition(
         twist_func=twist_func,
-        twist_func_old=twist_func_old,
+        # twist_func_old=twist_func_old,
         chord_func=chord_func,
-        chord_func_old=chord_func_old,
+        # chord_func_old=chord_func_old,
         solidity_func=solidity_func,
         airfoil_func=airfoil_func,
         N_blades=N_blades,
