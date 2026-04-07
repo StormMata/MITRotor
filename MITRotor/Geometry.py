@@ -12,11 +12,6 @@ class BEMGeometry:
         self.Radius = R
         self.Hub_radius = Rhub
 
-        # This replaces the old method for computing mu consistent with WRF-LES for induction modeling study
-        # dr = (R - Rhub) / Nr
-        # r_array = Rhub + dr * (np.arange(Nr) + 0.5)
-        # self.mu = r_array / R
-
         self.mu = np.linspace(0.0, 0.9999, Nr)
 
         self.theta = np.linspace(0.0, 2 * np.pi, Ntheta, endpoint=False)
@@ -67,27 +62,3 @@ class BEMGeometry:
     @property
     def dtheta(self):
         return 2 * np.pi / self.Ntheta
-
-# This replaces the old method for computing rotor-average quantities consistent with WRF-LES for induction modeling study
-    # def annulus_average(self, X: ArrayLike):
-    #     theta = self.theta
-
-    #     dtheta = np.gradient(theta)
-    #     weights = dtheta / np.sum(dtheta)
-    #     X_azim = np.sum(X * weights, axis=1)
-
-    #     return X_azim
-
-    # def rotor_average(self, X: ArrayLike):
-    #     # Takes annulus average quantities and performs rotor average
-    #     r = self.mu
-
-    #     dr = np.gradient(r)
-    #     area_elements = 2 * np.pi * r * dr  # differential area for annular rings
-    #     integrand = X * area_elements
-
-    #     A = np.pi * (1 - (self.Hub_radius/self.Radius)**2)
-
-    #     X_rotor =  np.sum(integrand) / A
-
-    #     return X_rotor
