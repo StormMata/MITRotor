@@ -303,134 +303,192 @@ class DefaultAerodynamics(AerodynamicModel):
         return aero_props
 
 
+# class WRFLESAerodynamics(AerodynamicModel):
+#     def __call__(
+#         self,
+#         an: ArrayLike,
+#         aprime: ArrayLike,
+#         pitch: float,
+#         tsr: float,
+#         yaw: float,
+#         rotor: RotorDefinition,
+#         geom: BEMGeometry,
+#         U: ArrayLike,
+#         wdir: ArrayLike,
+#         tilt: float = 0.0,
+#         precone: float = 0.0,
+#     ) -> AerodynamicProperties:
+#         """
+#         Performs the aerodynamic calculations in a blade-element code using the
+#         equations in WRF-LES as implemented by Kale et al. (2022) (see eq. B.3):
+#         https://doi.org/10.1016/j.renene.2022.07.119
+
+#         Equations are simplified assuming no cone and no tilt. Vertical velocity
+#         term in the equation for Vtan is neglected.
+
+#         Args:
+#             an (ArrayLike): Axial induction radial profile.
+#             aprime (ArrayLike): tangengial induction radial profile.
+#             pitch (float): blade pitch angle [rad].
+#             tsr (float): Rotor tip-speed ratio.
+#             yaw (float): Rotor yaw angle [rad].
+#             rotor (RotorDefinition): Turbine rotor definition object.
+#             geom (BEMGeometry): Blade element geometry object.
+#             U (ArrayLike): Inflow velocity on polar grid.
+#             wdir (ArrayLike): Inflow direction on polar grid.
+
+#         Returns:
+#             AerodynamicProperties: Calculated aerodynamic properties stored in AerodynamicProperties object.
+
+#         """
+
+#         u_fst = (U * (1 - an) * np.cos(wdir))
+#         v_fst = (U * (1 - an) * np.sin(wdir))
+
+#         # u_inf = U * np.cos(wdir)
+#         # v_inf = U * np.sin(wdir)
+
+#         # u_fst = ((((1-an) * u_inf)**2 + v_inf**2)**(1/2) * np.cos(np.atan2(v_inf, u_inf)))
+#         # v_fst = ((((1-an) * u_inf)**2 + v_inf**2)**(1/2) * np.sin(np.atan2(v_inf, u_inf)))
+
+#         w_fst = np.zeros_like(u_fst)
+
+#         Vax, Vtn_NR, _ = WRFLESAerodynamics.rotGlobalToLocal(geom.Nr,geom.Ntheta,u_fst,v_fst,w_fst, yaw, tilt, precone)
+
+#         Vtan = (1 + aprime) * tsr * geom.mu_mesh - Vtn_NR
+
+#         phi = np.arctan2(Vax, Vtan)
+#         aoa = phi - rotor.twist(geom.mu_mesh) - pitch
+#         aoa = np.clip(aoa, -np.pi / 2, np.pi / 2)
+
+#         Cl, Cd = rotor.clcd(geom.mu_mesh, aoa)
+
+#         solidity = rotor.solidity(geom.mu_mesh)
+
+#         aero_props = AerodynamicProperties(
+#             an = an,
+#             aprime = aprime,
+#             solidity = solidity,
+#             U = U * np.ones(geom.shape),
+#             wdir = wdir * np.ones(geom.shape),
+#             Vax = Vax,
+#             Vtan = Vtan,
+#             aoa = aoa,
+#             Cl = Cl,
+#             Cd = Cd,
+#         )
+
+#         return aero_props
+
+#     @staticmethod
+#     def rotGlobalToLocal(Nelm,Nsct,u_rotor,v_rotor,w_rotor, yaw, tilt, precone):
+#         """
+#         Replicates the matrix equations implemented in WRF-LES
+
+#         Args:
+
+
+#         Returns:
+#             Axial, tangential (wihtout rotation), and radial velocity components pointwise over the rotor
+
+#         """
+#         precone = precone
+#         tilt    = tilt
+#         trbYaw  = yaw
+
+#         psi = 0.0
+#         angle = 2 * np.pi / Nsct
+
+#         Ux   = np.zeros_like(u_rotor,dtype='float')
+#         Utau = np.zeros_like(u_rotor,dtype='float')
+#         Ur   = np.zeros_like(u_rotor,dtype='float')
+
+#         for i in range(Nelm):
+#             for j in range(Nsct):
+#                 transposePrecone = np.array([[ np.cos(precone), 0,  np.sin(precone)],
+#                                             [0,                1,                0],
+#                                             [-np.sin(precone), 0,  np.cos(precone)]])
+
+#                 transposeAzimuth = np.array([[1,                0,                0],
+#                                             [0,      np.cos(psi),      np.sin(psi)],
+#                                             [0,     -np.sin(psi),      np.cos(psi)]])
+
+#                 transposeTilt    = np.array([[np.cos(tilt),     0,    -np.sin(tilt)],
+#                                             [0,                1,                0],
+#                                             [np.sin(tilt),     0,     np.cos(tilt)]])
+
+#                 transposeYaw     = np.array([[np.cos(trbYaw),  np.sin(trbYaw),    0],
+#                                             [-np.sin(trbYaw), np.cos(trbYaw),    0],
+#                                             [0,                0,                1]])
+
+#                 psi = psi + angle
+
+#                 PreconeAzimuth        = np.matmul(transposePrecone,   transposeAzimuth)
+#                 PreconeAzimuthTilt    = np.matmul(PreconeAzimuth,     transposeTilt)
+#                 PreconeAzimuthTiltYaw = np.matmul(PreconeAzimuthTilt, transposeYaw)
+
+#                 local = np.matmul(PreconeAzimuthTiltYaw, np.array([[u_rotor[i,j]], [v_rotor[i,j]], [w_rotor[i,j]]]))
+
+#                 Ux[i,j]   = local[0][0]
+#                 Utau[i,j] = local[1][0]
+#                 Ur[i,j]   = local[2][0]
+
+#         return Ux, Utau, Ur
+    
+
 class WRFLESAerodynamics(AerodynamicModel):
     def __call__(
         self,
-        an: ArrayLike,
-        aprime: ArrayLike,
-        pitch: float,
-        tsr: float,
-        yaw: float,
-        rotor: RotorDefinition,
-        geom: BEMGeometry,
-        U: ArrayLike,
-        wdir: ArrayLike,
-        tilt: float = 0.0,
-        precone: float = 0.0,
-    ) -> AerodynamicProperties:
-        """
-        Performs the aerodynamic calculations in a blade-element code using the
-        equations in WRF-LES as implemented by Kale et al. (2022) (see eq. B.3):
-        https://doi.org/10.1016/j.renene.2022.07.119
+        an,
+        aprime,
+        pitch,
+        tsr,
+        yaw,
+        rotor,
+        geom,
+        U,
+        wdir,
+        tilt=0.0,
+        precone=0.0,
+    ):
+        if tilt != 0.0 or precone != 0.0:
+            raise ValueError("Fast path only supports tilt=0 and precone=0.")
 
-        Equations are simplified assuming no cone and no tilt. Vertical velocity
-        term in the equation for Vtan is neglected.
+        # Induced inflow in the fixed frame
+        u_fst = U * (1 - an) * np.cos(wdir)
+        v_fst = U * (1 - an) * np.sin(wdir)
 
-        Args:
-            an (ArrayLike): Axial induction radial profile.
-            aprime (ArrayLike): tangengial induction radial profile.
-            pitch (float): blade pitch angle [rad].
-            tsr (float): Rotor tip-speed ratio.
-            yaw (float): Rotor yaw angle [rad].
-            rotor (RotorDefinition): Turbine rotor definition object.
-            geom (BEMGeometry): Blade element geometry object.
-            U (ArrayLike): Inflow velocity on polar grid.
-            wdir (ArrayLike): Inflow direction on polar grid.
+        # Yaw rotation
+        cy = np.cos(yaw)
+        sy = np.sin(yaw)
 
-        Returns:
-            AerodynamicProperties: Calculated aerodynamic properties stored in AerodynamicProperties object.
+        u_yaw = cy * u_fst + sy * v_fst
+        v_yaw = -sy * u_fst + cy * v_fst
 
-        """
+        # Azimuth rotation
+        psi = geom.theta_mesh
+        cpsi = np.cos(psi)
 
-        u_fst = (U * (1 - an) * np.cos(wdir))
-        v_fst = (U * (1 - an) * np.sin(wdir))
-
-        # u_inf = U * np.cos(wdir)
-        # v_inf = U * np.sin(wdir)
-
-        # u_fst = ((((1-an) * u_inf)**2 + v_inf**2)**(1/2) * np.cos(np.atan2(v_inf, u_inf)))
-        # v_fst = ((((1-an) * u_inf)**2 + v_inf**2)**(1/2) * np.sin(np.atan2(v_inf, u_inf)))
-
-        w_fst = np.zeros_like(u_fst)
-
-        Vax, Vtn_NR, _ = WRFLESAerodynamics.rotGlobalToLocal(geom.Nr,geom.Ntheta,u_fst,v_fst,w_fst, yaw, tilt, precone)
+        Vax = u_yaw
+        Vtn_NR = cpsi * v_yaw
 
         Vtan = (1 + aprime) * tsr * geom.mu_mesh - Vtn_NR
-
         phi = np.arctan2(Vax, Vtan)
         aoa = phi - rotor.twist(geom.mu_mesh) - pitch
         aoa = np.clip(aoa, -np.pi / 2, np.pi / 2)
 
         Cl, Cd = rotor.clcd(geom.mu_mesh, aoa)
-
         solidity = rotor.solidity(geom.mu_mesh)
 
-        aero_props = AerodynamicProperties(
-            an = an,
-            aprime = aprime,
-            solidity = solidity,
-            U = U * np.ones(geom.shape),
-            wdir = wdir * np.ones(geom.shape),
-            Vax = Vax,
-            Vtan = Vtan,
-            aoa = aoa,
-            Cl = Cl,
-            Cd = Cd,
+        return AerodynamicProperties(
+            an=an,
+            aprime=aprime,
+            solidity=solidity,
+            U=U * np.ones(geom.shape),
+            wdir=wdir * np.ones(geom.shape),
+            Vax=Vax,
+            Vtan=Vtan,
+            aoa=aoa,
+            Cl=Cl,
+            Cd=Cd,
         )
-
-        return aero_props
-
-    @staticmethod
-    def rotGlobalToLocal(Nelm,Nsct,u_rotor,v_rotor,w_rotor, yaw, tilt, precone):
-        """
-        Replicates the matrix equations implemented in WRF-LES
-
-        Args:
-
-
-        Returns:
-            Axial, tangential (wihtout rotation), and radial velocity components pointwise over the rotor
-
-        """
-        precone = precone
-        tilt    = tilt
-        trbYaw  = yaw
-
-        psi = 0.0
-        angle = 2 * np.pi / Nsct
-
-        Ux   = np.zeros_like(u_rotor,dtype='float')
-        Utau = np.zeros_like(u_rotor,dtype='float')
-        Ur   = np.zeros_like(u_rotor,dtype='float')
-
-        for i in range(Nelm):
-            for j in range(Nsct):
-                transposePrecone = np.array([[ np.cos(precone), 0,  np.sin(precone)],
-                                            [0,                1,                0],
-                                            [-np.sin(precone), 0,  np.cos(precone)]])
-
-                transposeAzimuth = np.array([[1,                0,                0],
-                                            [0,      np.cos(psi),      np.sin(psi)],
-                                            [0,     -np.sin(psi),      np.cos(psi)]])
-
-                transposeTilt    = np.array([[np.cos(tilt),     0,    -np.sin(tilt)],
-                                            [0,                1,                0],
-                                            [np.sin(tilt),     0,     np.cos(tilt)]])
-
-                transposeYaw     = np.array([[np.cos(trbYaw),  np.sin(trbYaw),    0],
-                                            [-np.sin(trbYaw), np.cos(trbYaw),    0],
-                                            [0,                0,                1]])
-
-                psi = psi + angle
-
-                PreconeAzimuth        = np.matmul(transposePrecone,   transposeAzimuth)
-                PreconeAzimuthTilt    = np.matmul(PreconeAzimuth,     transposeTilt)
-                PreconeAzimuthTiltYaw = np.matmul(PreconeAzimuthTilt, transposeYaw)
-
-                local = np.matmul(PreconeAzimuthTiltYaw, np.array([[u_rotor[i,j]], [v_rotor[i,j]], [w_rotor[i,j]]]))
-
-                Ux[i,j]   = local[0][0]
-                Utau[i,j] = local[1][0]
-                Ur[i,j]   = local[2][0]
-
-        return Ux, Utau, Ur

@@ -83,7 +83,7 @@ class MomentumModel(ABC):
         annulus_avg_axial_force = (
             
                 geom.annulus_average(
-                    np.clip(aero_props.C_x_corr, -10, 10)
+                    np.clip(aero_props.C_x_corr, 0, 1.69)
                     )
                     )[:, None] * np.ones(geom.shape)
         
@@ -100,7 +100,7 @@ class MomentumModel(ABC):
         geom: "BEMGeometry",
         tilt: float = 0.0,
     ) -> ArrayLike:
-        axial_force = np.clip(aero_props.C_x_corr, -10, 10)
+        axial_force = np.clip(aero_props.C_x_corr, 0, 1.69)
 
         return self.compute_induction(axial_force, yaw = yaw, tilt = tilt)
 
@@ -119,9 +119,17 @@ class MomentumModel(ABC):
 
 
 class ConstantInduction(MomentumModel):
-    def __init__(self, a = 1/3):
+    def __init__(self, a = 1/3, averaging: Literal["sector", "annulus", "rotor"] = "rotor"):
         self.a = a
-        self._func = self._func_rotor
+        if averaging == "rotor":
+            self._func = self._func_rotor
+        elif averaging == "annulus":
+            self._func = self._func_annulus
+        elif averaging == "sector":
+            self._func = self._func_sector
+        else:
+            raise ValueError(f"Averaging method {averaging} not found for ClassicalMomentum model.")
+        self.averaging = averaging
 
     def compute_induction(self, Cx, yaw, tilt = 0) -> ArrayLike:
         if tilt != 0:
