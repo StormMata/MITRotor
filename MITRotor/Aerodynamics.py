@@ -455,8 +455,13 @@ class WRFLESAerodynamics(AerodynamicModel):
             raise ValueError("Fast path only supports tilt=0 and precone=0.")
 
         # Induced inflow in the fixed frame
-        u_fst = U * (1 - an) * np.cos(wdir)
-        v_fst = U * (1 - an) * np.sin(wdir)
+        # u_fst = U * (1 - an) * np.cos(wdir)
+        # v_fst = U * (1 - an) * np.sin(wdir)
+
+        u_inf = U * np.cos(wdir)
+        v_inf = U * np.sin(wdir)
+        u_fst = (1 - an) * u_inf
+        v_fst = v_inf
 
         # Yaw rotation
         cy = np.cos(yaw)

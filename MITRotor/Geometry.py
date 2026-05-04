@@ -12,7 +12,12 @@ class BEMGeometry:
         self.Radius = R
         self.Hub_radius = Rhub
 
-        self.mu = np.linspace(0.0, 0.9999, Nr)
+        # self.mu = np.linspace(Rhub/R, 0.9999, Nr)
+
+        self.mu_root = Rhub / R
+
+        self.mu_edges = np.linspace(self.mu_root, 1.0, Nr + 1)
+        self.mu = 0.5 * (self.mu_edges[:-1] + self.mu_edges[1:])
 
         self.theta = np.linspace(0.0, 2 * np.pi, Ntheta, endpoint=False)
 
@@ -44,16 +49,37 @@ class BEMGeometry:
 
         return X, Y, Z
     
-    def annulus_average(self, X: ArrayLike):
-        X_azim = 1 / (2 * np.pi) * np.trapezoid(X, self.theta_mesh, axis=-1)
+    # def annulus_average(self, X: ArrayLike):
+    #     X_azim = 1 / (2 * np.pi) * np.trapezoid(X, self.theta_mesh, axis=-1)
 
-        return X_azim
+    #     return X_azim
 
-    def rotor_average(self, X: ArrayLike):
-        # Takes annulus average quantities and performs rotor average
+    # def rotor_average(self, X: ArrayLike):
+    #     # Takes annulus average quantities and performs rotor average
 
-        X_rotor = 2 * np.trapezoid(X * self.mu, self.mu)
-        return X_rotor
+    #     X_rotor = 2 * np.trapezoid(X * self.mu, self.mu)
+    #     return X_rotor
+
+    def annulus_average(self, X):
+        return np.mean(X, axis=-1)
+
+    @property
+    def annulus_area_weights(self):
+        return self.mu_edges[1:]**2 - self.mu_edges[:-1]**2
+
+    def rotor_average(self, X):
+        w = self.annulus_area_weights
+
+        if X.ndim == 2:
+            # sector quantity, shape (Nr, Ntheta)
+            return np.sum(X * w[:, None]) / (self.Ntheta * np.sum(w))
+
+        elif X.ndim == 1:
+            # annulus quantity, shape (Nr,)
+            return np.sum(X * w) / np.sum(w)
+
+        else:
+            raise ValueError("Expected X with shape (Nr,) or (Nr, Ntheta).")
 
     @property
     def dr(self):

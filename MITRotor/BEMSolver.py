@@ -121,97 +121,6 @@ class BEMSolution:
         )
         return average(self.geom, dCp, grid=grid)
 
-    def FL(self, grid: Literal["sector", "annulus", "rotor"] = "sector"):
-
-        if self.U_ref is not None:
-
-            # Dimensional lift forces over rotor
-            L = 1/2 * self.rho * self.rotor.chord_func(self.geom.mu_mesh) * (self.Cl('sector') * (self.W('sector') * self.U_ref)**2)
-
-        else:
-            L = np.nan
-
-        return average(self.geom, L, grid=grid)
-    
-    def FD(self, grid: Literal["sector", "annulus", "rotor"] = "sector"):
-
-        if self.U_ref is not None:
-
-            # Dimensional drag forces over rotor
-            D = 1/2 * self.rho * self.rotor.chord_func(self.geom.mu_mesh) * (self.Cd('sector') * (self.W('sector') * self.U_ref)**2)
-
-        else:
-            D = np.nan
-
-        return average(self.geom, D, grid=grid)
-    
-    def FN(self, grid: Literal["sector", "annulus", "rotor"] = "sector"):
-
-        if self.U_ref is not None:
-
-            # Dimensional normal forces over rotor
-            FN = self.FL('sector') * np.cos(self.phi('sector')) + self.FD('sector') * np.sin(self.phi('sector'))
-
-        else:
-            FN = np.nan
-
-        return average(self.geom, FN, grid=grid)
-    
-    def FT(self, grid: Literal["sector", "annulus", "rotor"] = "sector"):
-
-        if self.U_ref is not None:
-
-            # Dimensional tangential forces over rotor
-            FT = self.FL('sector') * np.sin(self.phi('sector')) - self.FD('sector') * np.cos(self.phi('sector'))
-
-        else:
-            FT = np.nan
-
-        return average(self.geom, FT, grid=grid)
-    
-    def wrf_power(self):
-
-        if self.U_ref is not None:
-            # Dimensional radial blade element locations
-            r = self.geom.mu * self.rotor.R
-
-            # Differential blade element length
-            # dr = (self.rotor.R - self.rotor.hub_radius)/self.geom.Nr
-            dr = self.rotor.R /self.geom.Nr
-
-            # Rotor solidity as defined in WRF
-            sigma = 3/self.geom.Ntheta
-
-            # Local power matrix
-            P = self.FT('sector').T * r * dr * sigma * self.tsr * self.U_ref / self.rotor.R
-
-            P_total = np.sum(P)
-
-        else:
-            P_total = np.nan
-
-        return P_total
-
-    def wrf_thrust(self):
-
-        if self.U_ref is not None:
-            # Differential blade element length
-            # dr = (self.rotor.R - self.rotor.hub_radius)/self.geom.Nr
-            dr = self.rotor.R /self.geom.Nr
-
-            # Rotor solidity as defined in WRF
-            sigma = 3/self.geom.Ntheta
-
-            # Local thrust matrix
-            T = self.FN('sector').T * dr * sigma
-
-            T_total = np.sum(T)
-
-        else:
-            T_total = np.nan
-
-        return T_total
-
     def Ct(self, grid: Literal["sector", "annulus", "rotor"] = "rotor"):
         _Ct = self.aero_props.C_x
         return average(self.geom, _Ct, grid=grid)
@@ -225,86 +134,89 @@ class BEMSolution:
         Ctprime = self.Ct(grid="sector") / ((1 - self.a(grid="sector")) ** 2 * np.cos(eff_yaw) ** 2)
         return average(self.geom, Ctprime, grid=grid)
     
+    def Cq(self, grid: Literal["sector", "annulus", "rotor"] = "rotor"):
+        dCq = (
+            self.geom.mu_mesh
+            * self.Ctau_uncorr(grid="sector")
+        )
+        return average(self.geom, dCq, grid=grid)
+
+
+    def Cq_corr(self, grid: Literal["sector", "annulus", "rotor"] = "rotor"):
+        dCq = (
+            self.geom.mu_mesh
+            * self.Ctau(grid="sector")
+        )
+        return average(self.geom, dCq, grid=grid)
+
     # def thrust(self):
-    #     if self.U_ref is None:
-    #         return np.nan
 
-    #     fn = self.FN(grid="sector")   # N/m on one blade, shape (Nr, Ntheta)
+    #     dT = 1/2 * 3 * self.rho * self.rotor.chord_func(self.geom.mu_mesh) * (self.W('sector') * self.U_ref)**2 * (self.Cl('sector') * np.cos(self.phi('sector')) + self.Cd('sector') * np.sin(self.phi('sector')))
 
-    #     T = (
-    #         self.rotor.N_blades
-    #         * np.sum(fn)
-    #         * self.geom.dr
-    #         * self.geom.dtheta
-    #         / (2 * np.pi)
-    #     )
-    #     return T
+    #     Thrust = np.trapezoid(np.trapezoid(dT, self.geom.theta_mesh, axis=1), self.geom.mu * self.rotor.R) / (2 * np.pi)
 
+    #     return Thrust
+    
     # def torque(self):
-    #     if self.U_ref is None:
-    #         return np.nan
 
-    #     ft = self.FT(grid="sector")              # (Nr, Ntheta)
-    #     r = self.geom.mu[:, None] * self.rotor.R                # (Nr, 1)
+    #     dQ = 1/2 * 3 * self.rho * self.rotor.chord_func(self.geom.mu_mesh) * (self.W('sector') * self.U_ref)**2 * (self.Cl('sector') * np.sin(self.phi('sector')) - self.Cd('sector') * np.cos(self.phi('sector'))) * self.geom.mu_mesh * self.rotor.R
 
-    #     Q = (
-    #         self.rotor.N_blades
-    #         * np.sum(r * ft) * self.geom.dr * self.geom.dtheta / (2*np.pi)
-    #     )
-    #     return Q
+    #     Torque = np.trapezoid(np.trapezoid(dQ, self.geom.theta_mesh, axis=1), self.geom.mu * self.rotor.R) / (2 * np.pi)
+
+    #     return Torque
     
     # def power(self):
-    #     if self.U_ref is None:
-    #         return np.nan
 
-    #     omega = self.tsr * self.U_ref / self.rotor.R
-    #     return omega * self.torque()
+    #     dQ = 1/2 * 3 * self.rho * self.rotor.chord_func(self.geom.mu_mesh) * (self.W('sector') * self.U_ref)**2 * (self.Cl('sector') * np.sin(self.phi('sector')) - self.Cd('sector') * np.cos(self.phi('sector'))) * self.geom.mu_mesh * self.rotor.R
 
+    #     # print(self.rotor.chord_func(self.geom.mu_mesh))
+
+    #     dP = dQ * self.tsr * self.U_ref / self.rotor.R
+
+    #     Power = np.trapezoid(np.trapezoid(dP, self.geom.theta_mesh, axis=1), self.geom.mu * self.rotor.R) / (2 * np.pi)
+
+    #     return Power
+    
     def thrust(self):
+        B = self.rotor.N_blades
+        c = self.rotor.chord_func(self.geom.mu_mesh)
+        Wdim = self.W("sector") * self.U_ref
 
-        dT = 1/2 * 3 * self.rho * self.rotor.chord_func(self.geom.mu_mesh) * (self.W('sector') * self.U_ref)**2 * (self.Cl('sector') * np.cos(self.phi('sector')) + self.Cd('sector') * np.sin(self.phi('sector')))
+        Cn = (
+            self.Cl("sector") * np.cos(self.phi("sector"))
+            + self.Cd("sector") * np.sin(self.phi("sector"))
+        )
 
-        Thrust = np.trapezoid(np.trapezoid(dT, self.geom.theta_mesh, axis=1), self.geom.mu * self.rotor.R) / (2 * np.pi)
+        dT = 0.5 * B * self.rho * c * Wdim**2 * Cn  # N/m
 
-        return Thrust
-    
+        dr = self.rotor.R * np.diff(self.geom.mu_edges)  # shape (Nr,)
+
+        T_annulus_mean = np.mean(dT, axis=1)  # average over theta
+
+        return np.sum(T_annulus_mean * dr)
+
     def torque(self):
+        B = self.rotor.N_blades
+        c = self.rotor.chord_func(self.geom.mu_mesh)
+        r = self.geom.mu_mesh * self.rotor.R
+        Wdim = self.W("sector") * self.U_ref
 
-        dQ = 1/2 * 3 * self.rho * self.rotor.chord_func(self.geom.mu_mesh) * (self.W('sector') * self.U_ref)**2 * (self.Cl('sector') * np.sin(self.phi('sector')) - self.Cd('sector') * np.cos(self.phi('sector'))) * self.geom.mu_mesh * self.rotor.R
+        Ctangential = (
+            self.Cl("sector") * np.sin(self.phi("sector"))
+            - self.Cd("sector") * np.cos(self.phi("sector"))
+        )
 
-        Torque = np.trapezoid(np.trapezoid(dQ, self.geom.theta_mesh, axis=1), self.geom.mu * self.rotor.R) / (2 * np.pi)
+        dQ = 0.5 * B * self.rho * c * Wdim**2 * Ctangential * r  # N m / m
 
-        return Torque
-    
+        dr = self.rotor.R * np.diff(self.geom.mu_edges)
+
+        Q_annulus_mean = np.mean(dQ, axis=1)
+
+        return np.sum(Q_annulus_mean * dr)
+
     def power(self):
-
-        dQ = 1/2 * 3 * self.rho * self.rotor.chord_func(self.geom.mu_mesh) * (self.W('sector') * self.U_ref)**2 * (self.Cl('sector') * np.sin(self.phi('sector')) - self.Cd('sector') * np.cos(self.phi('sector'))) * self.geom.mu_mesh * self.rotor.R
-
-        # print(self.rotor.chord_func(self.geom.mu_mesh))
-
-        dP = dQ * self.tsr * self.U_ref / self.rotor.R
-
-        Power = np.trapezoid(np.trapezoid(dP, self.geom.theta_mesh, axis=1), self.geom.mu * self.rotor.R) / (2 * np.pi)
-
-        return Power
-    
-    # def Cp(self, U_ref=None, area=None):
-    #     if self.U_ref is None:
-    #         return np.nan
-
-    #     Uref = self.U_ref if U_ref is None else U_ref
-    #     A = np.pi * self.rotor.R**2 if area is None else area
-
-    #     return self.power() / (0.5 * self.rho * A * Uref**3)
-    
-    # def Ct(self, U_ref=None, area=None):
-    #     if self.U_ref is None:
-    #         return np.nan
-
-    #     Uref = self.U_ref if U_ref is None else U_ref
-    #     A = np.pi * self.rotor.R**2 if area is None else area
-
-    #     return self.thrust() / (0.5 * self.rho * A * Uref**2)
+        omega = self.tsr * self.U_ref / self.rotor.R
+        return omega * self.torque()
             
 @adaptivefixedpointiteration(max_iter=500, relaxations=[0.25, 0.5, 0.96])
 class BEM:
@@ -460,6 +372,7 @@ class BEMWithController:
                 wdir=wdir,
                 tilt=tilt,
                 U_ref=U_ref,
+                rho=rho,
             )
             sol.omega = None
             sol.tsr_mode = "given"
@@ -491,6 +404,7 @@ class BEMWithController:
                 wdir=wdir,
                 tilt=tilt,
                 U_ref=U_ref,
+                rho=rho,
             )
 
             Q_aero = sol_trial.torque()
@@ -521,6 +435,7 @@ class BEMWithController:
             wdir=wdir,
             tilt=tilt,
             U_ref=U_ref,
+            rho=rho,
         )
 
         sol.omega = float(omega)
