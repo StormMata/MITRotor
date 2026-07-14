@@ -270,12 +270,15 @@ class DefaultAerodynamics(AerodynamicModel):
 
         """
         # calculate values in "yaw-only" frame
-        local_yaw = -self.eff_yaw
+        # local_yaw = -self.eff_yaw
+        local_yaw = wdir - yaw
+
         Vax = U * ((1 - an) * np.cos(local_yaw))
         Vtan = (
             (1 + aprime) * tsr * geom.mu_mesh
             - U * (1 - an)
-            * np.cos(self.eff_theta_mesh)
+            # * np.cos(self.eff_theta_mesh)
+            * np.cos(geom.theta_mesh)
             * np.sin(local_yaw)
         )
 

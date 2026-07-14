@@ -19,7 +19,7 @@ class BEMGeometry:
         self.mu_edges = np.linspace(self.mu_root, 1.0, Nr + 1)
         self.mu = 0.5 * (self.mu_edges[:-1] + self.mu_edges[1:])
 
-        self.theta = np.linspace(0.0, 2 * np.pi, Ntheta, endpoint=False)
+        self.theta = np.linspace(0.0, 2 * np.pi, Ntheta, endpoint=True)
 
         self.theta_mesh, self.mu_mesh = np.meshgrid(self.theta, self.mu)
 

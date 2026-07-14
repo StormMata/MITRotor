@@ -4678,6 +4678,44 @@ def test_BEM_solve():
     assert (sol.Cp() > 0) and (sol.Cp() < 16 / 27)
 </file>
 
+<file path="tests/test_run_examples.py">
+# def test_example_001():
+#     from examples.example_001_momentum_aligned import main
+
+#     main()
+
+
+# def test_example_002():
+#     from examples.example_002_blah import main
+
+#     main()
+
+
+# def test_example_003():
+#     from examples.example_003_iterations import main
+
+#     main()
+
+
+# def test_example_004():
+#     from examples.example_004_ThrustInduction import func
+
+#     args_to_test = [
+#         (0.0, 2, "UnifiedMomentum"),
+#         (0.0, 2, "Heck"),
+#         (0.0, 2, "Madsen"),
+#     ]
+
+#     for args in args_to_test:
+#         func(args)
+
+
+# def test_example_005():
+#     from examples.example_005_BEM import main
+
+#     assert main()
+</file>
+
 <file path="examples/example_01_basic_BEM.py">
 import numpy as np
 
@@ -5673,44 +5711,6 @@ control:
 environment: {air_density: 1.225, air_dyn_viscosity: 1.81e-05, weib_shape_parameter: 2.0, air_speed_sound: 340.0, shear_exp: 0.2, water_density: 1025.0, water_dyn_viscosity: 0.0013351, soil_shear_modulus: 140000000.0, soil_poisson: 0.4, gravity: 9.80665, air_pressure: 103500.0, air_vapor_pressure: 1700.0, water_depth: 30.0, significant_wave_height: 4.52, significant_wave_period: 9.45}
 costs: {wake_loss_factor: 0.15, fixed_charge_rate: 0.056, bos_per_kW: 3143.0, opex_per_kW: 129.0, turbine_number: 60, labor_rate: 58.8, painting_rate: 30.0, blade_mass_cost_coeff: 14.6, hub_mass_cost_coeff: 3.9, pitch_system_mass_cost_coeff: 22.1, spinner_mass_cost_coeff: 11.1, lss_mass_cost_coeff: 11.9, bearing_mass_cost_coeff: 4.5, gearbox_mass_cost_coeff: 12.9, hss_mass_cost_coeff: 6.8, generator_mass_cost_coeff: 12.4, bedplate_mass_cost_coeff: 2.9, yaw_mass_cost_coeff: 8.3, converter_mass_cost_coeff: 18.8, transformer_mass_cost_coeff: 18.8, hvac_mass_cost_coeff: 124.0, cover_mass_cost_coeff: 5.7, elec_connec_machine_rating_cost_coeff: 41.85, platforms_mass_cost_coeff: 17.1, tower_mass_cost_coeff: 2.9, controls_machine_rating_cost_coeff: 21.15, crane_cost: 12000.0}
 bos: {plant_turbine_spacing: 7, plant_row_spacing: 7, commissioning_pct: 0.01, decommissioning_pct: 0.15, distance_to_substation: 2, distance_to_interconnection: 50, distance_to_landfall: 100, distance_to_site: 100, interconnect_voltage: 130, port_cost_per_month: 2000000.0, site_auction_price: 0.0, site_assessment_plan_cost: 0.0, site_assessment_cost: 0.0, construction_operations_plan_cost: 0.0, boem_review_cost: 0.0, design_install_plan_cost: 0.0}
-</file>
-
-<file path="tests/test_run_examples.py">
-# def test_example_001():
-#     from examples.example_001_momentum_aligned import main
-
-#     main()
-
-
-# def test_example_002():
-#     from examples.example_002_blah import main
-
-#     main()
-
-
-# def test_example_003():
-#     from examples.example_003_iterations import main
-
-#     main()
-
-
-# def test_example_004():
-#     from examples.example_004_ThrustInduction import func
-
-#     args_to_test = [
-#         (0.0, 2, "UnifiedMomentum"),
-#         (0.0, 2, "Heck"),
-#         (0.0, 2, "Madsen"),
-#     ]
-
-#     for args in args_to_test:
-#         func(args)
-
-
-# def test_example_005():
-#     from examples.example_005_BEM import main
-
-#     assert main()
 </file>
 
 <file path="MITRotor/ReferenceTurbines.py">
